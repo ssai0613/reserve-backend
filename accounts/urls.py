@@ -1,9 +1,12 @@
 from django.urls import path
-from rest_framework_simplejwt.views import (TokenObtainPairView, TokenRefreshView)
-from .views import UserRegistrationView
+from rest_framework_simplejwt.views import TokenRefreshView
+from .views import UserRegistrationView, CustomLoginView, MerchantRegistrationView, AdminMerchantApprovalView
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('register/merchant/', MerchantRegistrationView.as_view(), name='merchant-register'),
+    path('admin/merchants/', AdminMerchantApprovalView.as_view(), name='admin-merchant-list'),
+    path('admin/merchants/<int:merch_id>/', AdminMerchantApprovalView.as_view(), name='admin-merchant-action'),
+    path('login/', CustomLoginView.as_view(), name='token_obtain_pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
