@@ -1,0 +1,187 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReServe Admin - Sign In</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[#FBFCFA] min-h-screen w-screen overflow-x-hidden flex font-sans antialiased text-gray-800">
+
+  <div class="min-h-screen w-full flex">
+
+    <!-- LEFT: BRAND PANEL -->
+    <div class="hidden lg:flex lg:w-[46%] relative flex-col justify-between bg-gradient-to-b from-[#16382D] to-[#0F3025] px-14 py-12 overflow-hidden">
+
+      <!-- decorative mesh glow -->
+      <div class="absolute inset-0 pointer-events-none"
+        style="background: radial-gradient(circle at 12% 8%, rgba(139,195,163,0.30), transparent 42%),
+                           radial-gradient(circle at 88% 18%, rgba(235,179,56,0.18), transparent 38%),
+                           radial-gradient(circle at 70% 92%, rgba(58,130,109,0.45), transparent 45%);">
+      </div>
+      <div class="absolute inset-0 pointer-events-none opacity-[0.06]"
+        style="background-image:
+          linear-gradient(#8BC3A3 1px, transparent 1px),
+          linear-gradient(90deg, #8BC3A3 1px, transparent 1px);
+          background-size:32px 32px;
+          mask-image:radial-gradient(circle at 20% 15%, black 0%, transparent 65%);">
+      </div>
+
+      <!-- top mark row -->
+      <div class="relative z-10 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-white/5 border border-[#8BC3A3]/40 flex items-center justify-center shrink-0">
+          <svg width="22" height="22" viewBox="0 0 230 230">
+            <rect x="0" y="118" width="46" height="9" rx="4.5" fill="#8BC3A3" transform="rotate(-8 23 122)"/>
+            <rect x="8" y="140" width="60" height="9" rx="4.5" fill="#8BC3A3" transform="rotate(-8 38 144)"/>
+            <rect x="14" y="162" width="42" height="9" rx="4.5" fill="#8BC3A3" transform="rotate(-8 35 166)"/>
+            <path d="M100 78 C100 48 130 48 130 78" fill="none" stroke="#8BC3A3" stroke-width="12" stroke-linecap="round"/>
+            <path d="M112 84 C100 66 106 44 126 34 C130 54 126 72 116 86 Z" fill="#8BC3A3"/>
+            <path d="M126 34 C142 40 148 60 138 80 L118 84 C122 66 122 48 126 34 Z" fill="#3A826D"/>
+            <circle cx="92" cy="78" r="20" fill="#D64541"/>
+            <path d="M86 60 C89 54 97 54 100 59" stroke="#3A826D" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+            <path d="M148 88 C142 66 154 46 172 42 C176 62 172 82 156 90 C153 91 150 90 148 88 Z" fill="#EBB338"/>
+            <path d="M172 42 C177 40 181 43 180 48 C176 48 173 46 172 42 Z" fill="#B45309"/>
+            <rect x="60" y="84" width="110" height="112" rx="20" fill="#F4F8F6"/>
+            <g transform="translate(88,108)">
+              <path d="M0 76 L0 0 L28 0 C42 0 50 8 50 20 C50 30 44 37 34 39 L52 76 L36 76 L20 41 L16 41 L16 76 Z" fill="#1B4D3E"/>
+              <path d="M16 8 C10 16 10 26 18 32 C24 22 24 14 16 8 Z" fill="#8BC3A3"/>
+              <path d="M18 32 C26 30 32 22 30 12 C22 14 16 20 18 32 Z" fill="#3A826D"/>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-sm font-black text-white tracking-widest uppercase leading-none">RESERVE</h1>
+          <p class="text-[10px] font-bold tracking-widest text-[#8BC3A3] uppercase mt-1">Administrator Console</p>
+        </div>
+      </div>
+
+      <!-- center: big logo + wordmark, then left-aligned headline -->
+      <div class="relative z-10 flex-1 flex flex-col justify-center gap-10">
+
+        <div class="flex flex-col items-center text-center">
+          <svg width="200" height="200" viewBox="0 0 200 200">
+            <rect x="0" y="118" width="46" height="9" rx="4.5" fill="#8BC3A3" transform="rotate(-8 23 122)"/>
+            <rect x="8" y="140" width="60" height="9" rx="4.5" fill="#8BC3A3" transform="rotate(-8 38 144)"/>
+            <rect x="14" y="162" width="42" height="9" rx="4.5" fill="#8BC3A3" transform="rotate(-8 35 166)"/>
+            <path d="M100 78 C100 48 130 48 130 78" fill="none" stroke="#8BC3A3" stroke-width="12" stroke-linecap="round"/>
+            <path d="M112 84 C100 66 106 44 126 34 C130 54 126 72 116 86 Z" fill="#8BC3A3"/>
+            <path d="M126 34 C142 40 148 60 138 80 L118 84 C122 66 122 48 126 34 Z" fill="#3A826D"/>
+            <circle cx="92" cy="78" r="20" fill="#D64541"/>
+            <path d="M86 60 C89 54 97 54 100 59" stroke="#3A826D" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+            <path d="M148 88 C142 66 154 46 172 42 C176 62 172 82 156 90 C153 91 150 90 148 88 Z" fill="#EBB338"/>
+            <path d="M172 42 C177 40 181 43 180 48 C176 48 173 46 172 42 Z" fill="#B45309"/>
+            <rect x="60" y="84" width="110" height="112" rx="20" fill="#F4F8F6"/>
+            <g transform="translate(88,108)">
+              <path d="M0 76 L0 0 L28 0 C42 0 50 8 50 20 C50 30 44 37 34 39 L52 76 L36 76 L20 41 L16 41 L16 76 Z" fill="#1B4D3E"/>
+              <path d="M16 8 C10 16 10 26 18 32 C24 22 24 14 16 8 Z" fill="#8BC3A3"/>
+              <path d="M18 32 C26 30 32 22 30 12 C22 14 16 20 18 32 Z" fill="#3A826D"/>
+            </g>
+          </svg>
+          <div class="mt-3 text-4xl font-black text-white tracking-tight">Re<span class="text-[#EBB338]">Serve</span></div>
+        </div>
+
+        <div class="max-w-xl">
+          <h2 class="text-4xl font-black text-white leading-snug mb-3">
+            Operational control for the <span class="text-[#EBB338]">rescue network.</span>
+          </h2>
+          <p class="text-10sm text-[#D2EDD9]/70 leading-relaxed font-medium">
+            Manage merchant partners, food bank hubs, and live surplus listings. All admin activity is logged and access is restricted to authorized personnel.
+          </p>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div class="relative z-10 pt-6 border-t border-[#8BC3A3]/15 text-center">
+        <p class="text-xs font-black text-[#8BC3A3] tracking-wide">Good Food. Zero Waste.</p>
+        <p class="text-[11px] font-medium text-[#5C7A6C] mt-1">&copy; 2026 ReServe. All rights reserved.</p>
+      </div>
+    </div>
+
+    <!-- RIGHT: FORM PANEL -->
+    <div class="flex-1 flex items-center justify-center px-6 py-10">
+      <div class="w-full max-w-sm">
+
+        <!-- mobile-only brand row -->
+        <div class="flex lg:hidden items-center gap-2 mb-8">
+          <h1 class="text-lg font-black text-[#1B4D3E] tracking-widest uppercase">RESERVE</h1>
+          <span class="text-[10px] font-black bg-[#1B4D3E] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
+        </div>
+
+        <span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#1B4D3E] bg-[#E2EFE7] border border-[#CFE6D6] px-2.5 py-1 rounded-full mb-6">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#3A826D]"></span> Production environment
+        </span>
+
+        <h2 class="text-2xl font-black text-[#1B4D3E] mb-1">Sign in to your account</h2>
+        <p class="text-xs font-semibold text-gray-400 mb-7">Enter your administrator credentials to continue</p>
+
+        <form method="post" action="" id="loginForm" class="space-y-4">
+          <div>
+            <label for="email" class="text-xs font-bold text-gray-600 block mb-1.5">Work email</label>
+            <div class="relative">
+              <i data-lucide="mail" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+              <input id="email" type="email" name="email" placeholder="you@reserve.org" autocomplete="username" required
+                class="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none focus:border-[#3A826D] focus:ring-2 focus:ring-[#3A826D]/15 transition-all">
+            </div>
+          </div>
+
+          <div>
+            <label for="pw" class="text-xs font-bold text-gray-600 block mb-1.5">Password</label>
+            <div class="relative">
+              <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+              <input id="pw" type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required
+                class="w-full pl-10 pr-11 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none focus:border-[#3A826D] focus:ring-2 focus:ring-[#3A826D]/15 transition-all">
+              <button type="button" onclick="togglePw()" class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-400 hover:text-[#3A826D] transition-all">
+                <i id="eyeIcon" data-lucide="eye" class="w-4 h-4"></i>
+                <span id="eyeText" class="text-[11px] font-bold"></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <label class="flex items-center gap-2 text-xs font-bold text-gray-600">
+              <input type="checkbox" name="remember" class="rounded accent-[#3A826D]"> Keep me signed in
+            </label>
+            <a href="#" class="text-xs font-black text-[#3A826D] hover:text-[#1B4D3E] transition-all">Forgot password?</a>
+          </div>
+
+          <p id="formError" class="hidden text-[11px] font-bold text-[#B91C1C] bg-[#FEF2F2] border border-[#FCA5A5] rounded-lg px-3 py-2 -mt-1">Please enter both your email and password.</p>
+
+          <button type="submit" class="w-full bg-[#1B4D3E] hover:bg-[#153E32] text-white font-black text-xs py-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 uppercase tracking-wide">
+            Sign in <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+        </form>
+
+        <div class="flex items-center gap-3 my-6 text-[10px] font-black text-gray-300 uppercase tracking-wider">
+          <span class="flex-1 h-px bg-gray-100"></span> or <span class="flex-1 h-px bg-gray-100"></span>
+        </div>
+
+        <button type="button" class="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs py-3 rounded-xl transition-all">
+          <svg width="15" height="15" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3c-7.4 0-13.8 4.1-17.7 10.2z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.4C29.6 36.4 26.9 37 24 37c-5.3 0-9.7-3.1-11.4-7.7l-6.6 5.1C9.8 40.7 16.4 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.4-2.4 4.4-4.3 5.7l6.6 5.4C41.8 35.9 45 30.4 45 24c0-1.4-.1-2.5-.4-3.5z"/></svg>
+          Continue with SSO
+        </button>
+
+        <div class="flex gap-2.5 mt-6 p-3.5 bg-[#F4F8F6] border border-[#E2EFE7] rounded-xl">
+          <i data-lucide="shield-check" class="w-4 h-4 text-[#3A826D] shrink-0 mt-0.5"></i>
+          <p class="text-[11px] leading-relaxed text-gray-500 font-medium">Two-factor authentication will be requested after sign-in. Unauthorized access attempts are recorded.</p>
+        </div>
+
+        <p class="text-center text-xs font-semibold text-gray-400 mt-7">
+          Not an administrator? <a href="/" class="text-[#3A826D] font-black hover:text-[#1B4D3E] transition-all">Return to main site</a>
+        </p>
+      </div>
+    </div>
+
+  </div>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    });
+  </script>
+  <script src="{% static 'js/main.js' %}"></script>
+  
+</body>
+</html>

@@ -192,11 +192,38 @@ window.openAdminProfile = function() {
 };
 
 window.handleLogout = function() {
-  if (confirm("Are you sure you want to log out of ReServe Admin Portal?")) {
-    alert("Logged out successfully!");
-    window.location.href = "/";
-  }
+
+    if (confirm("Are you sure you want to log out of ReServe Admin Portal?")) {
+
+        alert("Logged out successfully!");
+
+        console.log("BEFORE REDIRECT:", window.location.href);
+
+        window.location.href = "/login/";
+
+        console.log("AFTER REDIRECT:", window.location.href);
+    }
+
 };
+
+function togglePw() {
+    const pw = document.getElementById("pw");
+    const eyeIcon = document.getElementById("eyeIcon");
+
+    if (!pw || !eyeIcon) return;
+
+    if (pw.type === "password") {
+        pw.type = "text";
+        eyeIcon.setAttribute("data-lucide", "eye-off");
+    } else {
+        pw.type = "password";
+        eyeIcon.setAttribute("data-lucide", "eye");
+    }
+
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+}
 
 window.toggleMobileNav = function() {
   const nav = document.getElementById('mainNavbar');

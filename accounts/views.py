@@ -129,6 +129,10 @@ class AdminMerchantApprovalView(APIView):
 
 # --- CUSTOM ADMIN GUI VIEWS ---
 
+def login(request):
+    # Your login logic here
+    return render(request, 'login.html')
+
 def admin_dashboard(request):
     # Fetch live counts from Supabase
     active_merchants_count = Merchant.objects.filter(status='Active').count()

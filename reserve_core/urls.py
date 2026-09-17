@@ -11,7 +11,8 @@ urlpatterns = [
     path('api/accounts/', include('accounts.urls')),
     
     # Teammates' Custom Admin GUI Routes
-    path('', custom_admin_views.admin_dashboard, name='custom-dashboard'),
+    path('', custom_admin_views.login, name='custom-login'),
+    path('dashboard/', custom_admin_views.admin_dashboard, name='custom-dashboard'),
     path('users/', custom_admin_views.admin_users, name='custom-users'),
     path('food-listing/', custom_admin_views.admin_food_listing, name='custom-food-listing'),
     path('donations/', custom_admin_views.admin_donations, name='custom-donations'),
