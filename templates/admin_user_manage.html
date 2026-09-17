@@ -1,0 +1,938 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReServe Admin - User Management</title>
+  <link rel="stylesheet" href="{% static 'css/compiled.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+</head>
+<body class="bg-[#F4F8F6] min-h-screen w-screen overflow-x-hidden flex flex-col font-sans antialiased text-gray-800">
+
+ 
+  <header class="bg-[#8BC3A3] px-4 md:px-8 py-3.5 flex justify-between items-center shrink-0 border-b border-[#1B4D3E]/10 shadow-sm sticky top-0 z-50 w-full">
+    <div class="flex items-center gap-3 shrink-0">
+      <h1 class="text-xl md:text-2xl font-black text-[#1B4D3E] tracking-widest uppercase">RESERVE</h1>
+      <span class="text-[10px] font-black bg-[#1B4D3E] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">Admin</span>
+    </div>
+
+    <nav id="mainNavbar" class="hidden lg:flex flex-col lg:flex-row absolute lg:static top-full left-0 w-full lg:w-auto bg-[#8BC3A3] lg:bg-transparent p-4 lg:p-0 border-t lg:border-t-0 border-[#1B4D3E]/10 shadow-2xl lg:shadow-none gap-2 lg:gap-1.5 z-40">
+      <a href="/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i><span>Dashboard</span>
+      </a>
+      <a href="/users/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black bg-white text-[#1B4D3E] shadow-sm">
+        <i data-lucide="users" class="w-4 h-4"></i><span>Users</span>
+      </a>
+      <a href="/food-listing/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="utensils" class="w-4 h-4"></i><span>Food Listing</span>
+      </a>
+      <a href="/donations/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="hand-heart" class="w-4 h-4"></i><span>Donations</span>
+      </a>
+      <a href="/payouts/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="arrow-left-right" class="w-4 h-4"></i><span>Payouts</span>
+      </a>
+      <a href="/announcements/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="megaphone" class="w-4 h-4"></i><span>Announcements</span>
+      </a>
+    </nav>
+
+    <div class="flex items-center gap-2 md:gap-3 shrink-0">
+      <div class="relative">
+        <button id="notifMenuBtn" onclick="toggleNotifMenu()" class="p-2 bg-white/50 hover:bg-white rounded-xl transition-all border border-white/60 shadow-sm focus:outline-none relative">
+          <i data-lucide="bell" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <span id="notifBadge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+        </button>
+        <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border p-4 space-y-2 z-50 text-xs">
+          <h4 class="font-black text-[#1B4D3E] border-b pb-1">Notifications & Alerts</h4>
+          <p class="text-amber-700 bg-amber-50 p-2 rounded-xl border-l-4 border-amber-500 font-bold">Pending KYB Permit verification.</p>
+        </div>
+      </div>
+
+      <div class="relative">
+        <button id="adminMenuBtn" onclick="toggleAdminMenu()" class="flex items-center gap-2 bg-white/50 hover:bg-white px-3 py-1.5 rounded-xl border border-white/60 shadow-sm cursor-pointer transition-all focus:outline-none">
+          <div class="w-6 h-6 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black text-[10px]">A</div>
+          <span class="text-xs font-bold text-[#1B4D3E] hidden sm:inline">System Admin</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[#1B4D3E]"></i>
+        </button>
+        <div id="adminDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl border py-2 z-50 text-xs font-bold">
+          <button onclick="openAdminProfile()" class="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700">Profile Settings</button>
+          <hr class="my-1 border-gray-100">
+          <button onclick="handleLogout()" class="w-full text-left px-4 py-2 hover:bg-red-50 text-rose-600 flex items-center gap-2">Logout System</button>
+        </div>
+      </div>
+
+      <button onclick="toggleMobileNav()" class="lg:hidden p-2 bg-white/50 hover:bg-white rounded-xl text-[#1B4D3E] focus:outline-none shadow-sm">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- FULL-WIDTH CONTENT AREA -->
+  <main class="flex-1 w-full px-4 md:px-8 py-6 space-y-6">
+    <div>
+      <h2 class="text-2xl font-black text-[#1B4D3E] tracking-tight">User Management Directory</h2>
+      <p class="text-xs font-semibold text-gray-400">Manage Consumer, Merchant, and Food Bank directories</p>
+    </div>
+
+    <!-- Stat Cards in Modern Gradient -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-gradient-to-r from-[#1B4D3E] to-[#2D6A56] p-5 rounded-3xl text-white shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest opacity-80">Total Registered</p>
+        <h3 class="text-3xl font-black mt-1">100,000</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Accounts</p>
+        <h3 class="text-3xl font-black text-[#1B4D3E] mt-1">150</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Banned Accounts</p>
+        <h3 class="text-3xl font-black text-rose-600 mt-1">500</h3>
+      </div>
+    </div>
+
+    <!-- Control Bar -->
+    <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
+      <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+        <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl border text-xs flex-1">
+          <i data-lucide="calendar" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <span class="font-black text-[#1B4D3E]">Date Filter:</span>
+          <input type="text" class="date-range-picker w-full bg-transparent font-bold text-gray-700 focus:outline-none text-[11px]" placeholder="Pick date registered range...">
+          <button onclick="clearCalendarFilter()" class="text-gray-400 hover:text-rose-500 font-bold px-1.5" title="Clear Filter">✕</button>
+        </div>
+
+        <select onchange="triggerSortByCriteria(this)" class="p-2.5 bg-[#3A826D] text-white rounded-2xl text-xs font-bold shadow-sm focus:outline-none cursor-pointer">
+          <option value="">Sort Criteria...</option>
+          <option value="name-asc">Name (A-Z)</option>
+          <option value="name-desc">Name (Z-A)</option>
+          <option value="date-desc">Date (Newest)</option>
+          <option value="date-asc">Date (Oldest)</option>
+        </select>
+
+        <div class="relative flex-1">
+          <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3.5 top-3"></i>
+          <input type="text" placeholder="Search account name, ID or email..." class="w-full pl-10 pr-4 py-2.5 bg-gray-50 rounded-2xl text-xs border focus:outline-none font-medium">
+        </div>
+      </div>
+    </div>
+
+    <!-- Role Tabs -->
+    <div class="flex gap-2 border-b border-gray-200 pb-1 overflow-x-auto">
+      <button onclick="switchRoleTab('Consumer', this)" class="role-tab-btn px-6 py-2.5 text-xs font-black rounded-2xl bg-white text-[#1B4D3E] shadow-sm border-b-2 border-[#1B4D3E]">Consumer</button>
+      <button onclick="switchRoleTab('Merchant', this)" class="role-tab-btn px-6 py-2.5 text-xs font-bold rounded-2xl text-gray-400 hover:text-[#1B4D3E]">Merchant</button>
+      <button onclick="switchRoleTab('Food Bank', this)" class="role-tab-btn px-6 py-2.5 text-xs font-bold rounded-2xl text-gray-400 hover:text-[#1B4D3E]">Food Bank</button>
+    </div>
+
+    <!-- Full-Width Styled Tables -->
+    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+      
+      <!-- 1. CONSUMER TABLE -->
+      <table id="table-consumer" class="user-role-table w-full text-left text-xs min-w-[600px]">
+        <thead class="bg-[#1B4D3E] text-white font-bold uppercase tracking-wider text-[10px]">
+          <tr>
+            <th class="p-3.5"><input type="checkbox" onclick="toggleSelectAll(this)"></th>
+            <th class="p-3.5">ID</th>
+            <th class="p-3.5">Name</th>
+            <th class="p-3.5">Date Registered</th>
+            <th class="p-3.5">Status</th>
+            <th class="p-3.5">Actions</th>
+          </tr>
+        </thead>
+          <tbody class="divide-y divide-gray-100 font-medium">
+            {% for consumer in consumers %}
+            <tr class="hover:bg-gray-50/80">
+              <td class="p-3.5"><input type="checkbox"></td>
+              <td class="p-3.5 font-bold text-gray-700">CID-{{ consumer.cons_id }}</td>
+              <td class="p-3.5 font-bold text-[#1B4D3E]">{{ consumer.cons_fullname }}</td>
+              <td class="p-3.5 text-gray-500">{{ consumer.user.created_at|date:"Y-m-d" }}</td>
+              <td class="p-3.5"><span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span></td>
+              <td class="p-3.5 flex items-center gap-3">
+                <i data-lucide="eye" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="toggleModal('consumerViewModal')"></i>
+                <i data-lucide="edit" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="toggleModal('consumerEditModal')"></i>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="p-4 text-center text-gray-500 text-xs">No consumers registered yet.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+      </table>
+
+      <!-- 2. MERCHANT TABLE -->
+      <table id="table-merchant" class="user-role-table hidden w-full text-left text-xs min-w-[600px]">
+        <thead class="bg-[#1B4D3E] text-white font-bold uppercase tracking-wider text-[10px]">
+          <tr>
+            <th class="p-3.5"><input type="checkbox" onclick="toggleSelectAll(this)"></th>
+            <th class="p-3.5">ID</th>
+            <th class="p-3.5">Establishment Name</th>
+            <th class="p-3.5">Date Registered</th>
+            <th class="p-3.5">Tier</th>
+            <th class="p-3.5">Status</th>
+            <th class="p-3.5">Actions</th>
+          </tr>
+        </thead>
+          <tbody class="divide-y divide-gray-100 font-medium">
+            {% for merchant in merchants %}
+            <tr class="hover:bg-gray-50/80">
+              <td class="p-3.5"><input type="checkbox"></td>
+              <td class="p-3.5 font-bold text-gray-700">MID-{{ merchant.merch_id }}</td>
+              <td class="p-3.5 font-bold text-[#1B4D3E]">{{ merchant.bus_name }}</td>
+              <td class="p-3.5 text-gray-500">{{ merchant.user.created_at|date:"Y-m-d" }}</td>
+              <td class="p-3.5"><span class="bg-gray-100 px-2.5 py-0.5 rounded-full font-bold text-gray-700 text-[10px]">Tier {{ merchant.plan_id }}</span></td>
+              <td class="p-3.5">
+                {% if merchant.status == 'Active' %}
+                  <span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span>
+                {% elif merchant.status == 'Pending' %}
+                  <span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Pending</span>
+                {% else %}
+                  <span class="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">{{ merchant.status }}</span>
+                {% endif %}
+              </td>
+              <td class="p-3.5 flex items-center gap-3">
+                <i data-lucide="eye" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="toggleModal('merchantViewModal')"></i>
+                <i data-lucide="edit" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="toggleModal('merchantEditModal')"></i>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7" class="p-4 text-center text-gray-500 text-xs">No merchants registered yet.</td>
+            </tr>
+            {% endfor %}
+         </tbody>
+      </table>
+
+      <!-- 3. FOOD BANK TABLE -->
+      <table id="table-foodbank" class="user-role-table hidden w-full text-left text-xs min-w-[600px]">
+        <thead class="bg-[#1B4D3E] text-white font-bold uppercase tracking-wider text-[10px]">
+          <tr>
+            <th class="p-3.5"><input type="checkbox" onclick="toggleSelectAll(this)"></th>
+            <th class="p-3.5">ID</th>
+            <th class="p-3.5">Organization</th>
+            <th class="p-3.5">Date Registered</th>
+            <th class="p-3.5">Status</th>
+            <th class="p-3.5">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 font-medium">
+          {% for foodbank in foodbanks %}
+          <tr class="hover:bg-gray-50/80">
+            <td class="p-3.5"><input type="checkbox"></td>
+            <td class="p-3.5 font-bold text-gray-700">FB-{{ foodbank.fb_id }}</td>
+            <td class="p-3.5 font-bold text-[#1B4D3E]">{{ foodbank.fb_name }}</td>
+            <td class="p-3.5 text-gray-500">{{ foodbank.user.created_at|date:"Y-m-d" }}</td>
+            <td class="p-3.5">
+              {% if foodbank.status == 'Active' %}
+                <span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span>
+              {% else %}
+                <span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">{{ foodbank.status }}</span>
+              {% endif %}
+            </td>
+            <td class="p-3.5 flex items-center gap-3">
+              <i data-lucide="eye" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="toggleModal('foodBankViewModal')"></i>
+              <i data-lucide="edit" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="toggleModal('foodBankEditModal')"></i>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="p-4 text-center text-gray-500 text-xs">No Food Banks registered yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!--                               MODALS LAYER                                -->
+    <!-- ========================================================================= -->
+
+    <!-- 0. ADMIN PROFILE MODAL -->
+    <div id="adminProfileModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black">A</div>
+            <div>
+              <h3 class="font-black text-[#1B4D3E] text-base">System Administrator</h3>
+              <p class="text-[10px] text-gray-700 font-bold">Admin Profile Settings</p>
+            </div>
+          </div>
+          <button onclick="toggleModal('adminProfileModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Admin Username</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="system_admin" readonly>
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Email Address</label>
+              <input type="email" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="admin@reserve.org">
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Security Role</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs text-emerald-800 focus:outline-none" value="Super Administrator" readonly>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end gap-2">
+          <button onclick="toggleModal('adminProfileModal')" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl font-bold text-xs">Cancel</button>
+          <button onclick="toggleModal('adminProfileModal'); alert('Admin profile settings updated!');" class="bg-[#1B4D3E] text-white px-5 py-2 rounded-xl font-bold text-xs">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. MERCHANT VIEW MODAL -->
+    <div id="merchantViewModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[760px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        
+        <!-- Modal Top Bar with Exit (X) Button -->
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center relative">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+              <i data-lucide="store" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-black text-[#1B4D3E] text-lg tracking-tight">Nena’s Bakeshop</h3>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+                <i data-lucide="user" class="w-5 h-5"></i>
+              </div>
+              <div class="text-right">
+                <p class="font-black text-[#1B4D3E] text-xs leading-tight">Kate Cogtas</p>
+                <p class="text-[11px] text-gray-700 font-bold">+6391-2345-678</p>
+              </div>
+            </div>
+            <button onclick="toggleModal('merchantViewModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+          </div>
+        </div>
+
+        <!-- 4 White Cards Grid -->
+        <div class="p-5 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Business Details Card -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Business Details</h4>
+              <div>
+                <label class="text-[11px] font-bold text-gray-700">Business Type</label>
+                <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Bakeshop</div>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-gray-700">Physical Address</label>
+                <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-start gap-1">
+                  <span class="text-red-500 font-bold">📍</span>
+                  <span class="leading-tight">Purok Butterfly, Pusok, Lapu-Lapu City, Cebu, Philippines</span>
+                </div>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-gray-700">Business Description</label>
+                <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5">Fresh baked pastries, etc.</div>
+              </div>
+            </div>
+
+            <!-- Contact Information Card + View Docs Button -->
+            <div class="space-y-3 flex flex-col justify-between">
+              <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
+                <h4 class="font-black text-[#1B4D3E] text-sm">Contact Information</h4>
+                <div>
+                  <label class="text-[11px] font-bold text-gray-700">Email</label>
+                  <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                    <i data-lucide="mail" class="w-3.5 h-3.5 text-gray-600"></i>
+                    <span>nenabshop@gmail.com</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-[11px] font-bold text-gray-700">Phone</label>
+                  <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                    <i data-lucide="phone" class="w-3.5 h-3.5 text-gray-600"></i>
+                    <span>+6391-1234-5678</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-[11px] font-bold text-gray-700">Primary Contact</label>
+                  <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Kate Cogtas</div>
+                </div>
+              </div>
+
+              <button onclick="toggleModal('merchantViewModal'); toggleModal('merchantEditModal');" class="w-full bg-[#8BC3A3] hover:bg-[#78b392] text-[#1B4D3E] font-black text-xs py-3 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2">
+                <span>View Business Documents</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Operational Metrics Card -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Operational Metrics</h4>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <p class="text-[11px] font-bold text-gray-500">Total Donations</p>
+                  <h5 class="text-2xl font-black text-gray-900 mt-0.5">123</h5>
+                </div>
+                <div>
+                  <p class="text-[11px] font-bold text-gray-500">Active Listings</p>
+                  <h5 class="text-2xl font-black text-gray-900 mt-0.5">789</h5>
+                </div>
+              </div>
+              <div class="pt-1 border-t border-gray-50">
+                <p class="text-[11px] font-bold text-gray-500">Completed Transactions</p>
+                <h5 class="text-2xl font-black text-gray-900 mt-0.5">456</h5>
+              </div>
+            </div>
+
+            <!-- Donations History Card -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Donations History</h4>
+              <div class="space-y-2 text-xs">
+                <div class="flex items-start gap-2">
+                  <span class="font-bold text-gray-700 w-16 shrink-0">Today</span>
+                  <span class="text-gray-600 font-medium">- Donated 55 Bagels to Rescue Kid</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="font-bold text-gray-700 w-16 shrink-0">04/07/26</span>
+                  <span class="text-gray-600 font-medium">- Donated 55 Bagels to Rescue Kid</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="font-bold text-gray-700 w-16 shrink-0">04/07/26</span>
+                  <span class="text-gray-600 font-medium">- Donated 55 Bagels to Rescue Kid</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Footer Action Area -->
+          <div class="pt-2 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm">
+              <span class="bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase">VERIFIED</span>
+              <div class="text-[10px] text-[#1B4D3E] font-bold leading-tight">
+                <p>Verification Date:</p>
+                <p class="font-black">2025-02-15</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full md:w-auto">
+              <button class="bg-[#8BC3A3] hover:bg-[#78b392] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm transition-all text-center">FLAG PROFILE</button>
+              <button class="bg-[#8BC3A3] hover:bg-[#78b392] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm transition-all text-center">SUSPEND USER</button>
+              <button class="bg-[#8BC3A3] hover:bg-[#78b392] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm transition-all text-center">RE-VERIFY</button>
+              <button class="bg-[#8BC3A3] hover:bg-[#78b392] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm transition-all text-center">SEND PRIVATE ANNOUNCEMENT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. MERCHANT EDIT / OCR REGISTRATION REVIEW MODAL -->
+    <div id="merchantEditModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[800px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+              <i data-lucide="store" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-black text-[#1B4D3E] text-base tracking-tight">Nena's Bakeshop</h3>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <span class="bg-[#EBB338] text-white text-[11px] font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">PENDING APPROVAL</span>
+              <p class="text-[10px] text-gray-700 font-bold mt-1">Registration Date: 2025-02-15</p>
+            </div>
+            <button onclick="toggleModal('merchantEditModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+          </div>
+        </div>
+
+        <div class="p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+          <!-- Left Column: Basic Information -->
+          <div class="md:col-span-5 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
+            <h4 class="font-black text-[#1B4D3E] text-sm">Basic Information</h4>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Business Type</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Bakeshop</div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Physical Address</label>
+              <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-start gap-1">
+                <span class="text-red-500 font-bold">📍</span>
+                <span class="leading-tight">Purok Butterfly, Pusok, Lapu-Lapu City, Cebu</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Business Description</label>
+              <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5">Fresh baked pastries, etc.</div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Email</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                <i data-lucide="mail" class="w-3.5 h-3.5 text-gray-600"></i>
+                <span>nenabshop@gmail.com</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Phone</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                <i data-lucide="phone" class="w-3.5 h-3.5 text-gray-600"></i>
+                <span>+6391-1234-5678</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Primary Contact</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Kate Cogtas</div>
+            </div>
+          </div>
+
+          <!-- Right Column: OCR Documents -->
+          <div class="md:col-span-7 space-y-3 max-h-[460px] overflow-y-auto pr-1">
+            <h4 class="font-black text-[#1B4D3E] text-sm">Uploaded Documents & OCR AI Verification</h4>
+
+            <!-- Doc 1: Business Permit -->
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3 text-xs">
+              <div class="w-24 h-32 bg-gray-100 rounded-xl border flex flex-col items-center justify-center p-2 shrink-0 text-center">
+                <span class="text-[9px] font-black uppercase text-emerald-800">BUSINESS PERMIT</span>
+                <i data-lucide="file-text" class="w-8 h-8 text-gray-400 my-1"></i>
+                <span class="text-[8px] text-gray-500 font-semibold">permit_2026.pdf</span>
+              </div>
+              <div class="space-y-1.5 flex-1">
+                <p class="font-black text-[#1B4D3E] text-[11px]">OCR Extracted Texts</p>
+                <p class="text-[10px] text-gray-600 font-medium">Business Name: <strong class="text-gray-800">Nena's Bakeshop</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Permit #: <strong class="text-gray-800">Nena's Bakeshop</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Expiry Date: <strong class="text-gray-800">January 12, 2027</strong></p>
+                <div class="inline-block bg-[#8BC3A3]/30 text-[#1B4D3E] font-black text-[9px] px-2 py-0.5 rounded-md">Confidence Score: 80%</div>
+                <div class="flex gap-2 pt-1">
+                  <button class="bg-[#3A826D] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Re-run OCR</button>
+                  <button class="bg-[#1B4D3E] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Mark as Confirmed</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Doc 2: DTI Registration -->
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3 text-xs">
+              <div class="w-24 h-32 bg-gray-100 rounded-xl border flex flex-col items-center justify-center p-2 shrink-0 text-center">
+                <span class="text-[9px] font-black uppercase text-emerald-800">DTI REGISTRATION</span>
+                <i data-lucide="file-check" class="w-8 h-8 text-gray-400 my-1"></i>
+                <span class="text-[8px] text-gray-500 font-semibold">dti_cert.pdf</span>
+              </div>
+              <div class="space-y-1.5 flex-1">
+                <p class="font-black text-[#1B4D3E] text-[11px]">OCR Extracted Texts</p>
+                <p class="text-[10px] text-gray-600 font-medium">Business Name: <strong class="text-gray-800">Nena's Bakeshop</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Permit #: <strong class="text-gray-800">Nena's Bakeshop</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Expiry Date: <strong class="text-gray-800">January 12, 2027</strong></p>
+                <div class="inline-block bg-[#8BC3A3]/30 text-[#1B4D3E] font-black text-[9px] px-2 py-0.5 rounded-md">Confidence Score: 80%</div>
+                <div class="flex gap-2 pt-1">
+                  <button class="bg-[#3A826D] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Re-run OCR</button>
+                  <button class="bg-[#1B4D3E] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Mark as Confirmed</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Doc 3: TIN Verification -->
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3 text-xs">
+              <div class="w-24 h-32 bg-gray-100 rounded-xl border flex flex-col items-center justify-center p-2 shrink-0 text-center">
+                <span class="text-[9px] font-black uppercase text-emerald-800">TIN VERIFICATION</span>
+                <i data-lucide="shield-check" class="w-8 h-8 text-gray-400 my-1"></i>
+                <span class="text-[8px] text-gray-500 font-semibold">bir_tin.pdf</span>
+              </div>
+              <div class="space-y-1.5 flex-1">
+                <p class="font-black text-[#1B4D3E] text-[11px]">OCR Extracted Texts</p>
+                <p class="text-[10px] text-gray-600 font-medium">Business Name: <strong class="text-gray-800">Nena's Bakeshop</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Permit #: <strong class="text-gray-800">Nena's Bakeshop</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Expiry Date: <strong class="text-gray-800">January 12, 2027</strong></p>
+                <div class="inline-block bg-[#8BC3A3]/30 text-[#1B4D3E] font-black text-[9px] px-2 py-0.5 rounded-md">Confidence Score: 80%</div>
+                <div class="flex gap-2 pt-1">
+                  <button class="bg-[#3A826D] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Re-run OCR</button>
+                  <button class="bg-[#1B4D3E] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Mark as Confirmed</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Footer -->
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex flex-wrap justify-end gap-2.5">
+          <button onclick="toggleModal('merchantEditModal')" class="bg-[#8BC3A3] text-[#1B4D3E] font-black text-xs px-5 py-2.5 rounded-xl hover:bg-[#78b392]">REQUEST RESUBMISSION</button>
+          <button onclick="rejectMerchantKYB('MID-101')" class="bg-white border border-gray-300 text-gray-700 font-black text-xs px-5 py-2.5 rounded-xl hover:bg-gray-50">REJECT PROFILE</button>
+          <button onclick="approveMerchantKYB('MID-101')" class="bg-[#8BC3A3] text-[#1B4D3E] font-black text-xs px-6 py-2.5 rounded-xl hover:bg-[#78b392]">APPROVE PROFILE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. FOOD BANK VIEW MODAL -->
+    <div id="foodBankViewModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[760px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+              <i data-lucide="hand-heart" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-black text-[#1B4D3E] text-lg tracking-tight">Save Children</h3>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+                <i data-lucide="user" class="w-5 h-5"></i>
+              </div>
+              <div class="text-right">
+                <p class="font-black text-[#1B4D3E] text-xs leading-tight">Jahnea Segovia</p>
+                <p class="text-[11px] text-gray-700 font-bold">+6391-2345-678</p>
+              </div>
+            </div>
+            <button onclick="toggleModal('foodBankViewModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+          </div>
+        </div>
+
+        <div class="p-5 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Organization Details</h4>
+              <div>
+                <label class="text-[11px] font-bold text-gray-700">Type</label>
+                <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Non-profit hub</div>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-gray-700">Physical Address</label>
+                <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-start gap-1">
+                  <span class="text-red-500 font-bold">📍</span>
+                  <span class="leading-tight">Purok Butterfly, Pusok, Lapu-Lapu City, Cebu</span>
+                </div>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-gray-700">Mission Statement</label>
+                <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5">Distributing surplus to underserved families</div>
+              </div>
+            </div>
+
+            <div class="space-y-3 flex flex-col justify-between">
+              <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
+                <h4 class="font-black text-[#1B4D3E] text-sm">Contact Information</h4>
+                <div>
+                  <label class="text-[11px] font-bold text-gray-700">Email</label>
+                  <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                    <i data-lucide="mail" class="w-3.5 h-3.5 text-gray-600"></i>
+                    <span>foodbank@gmail.com</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-[11px] font-bold text-gray-700">Phone</label>
+                  <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                    <i data-lucide="phone" class="w-3.5 h-3.5 text-gray-600"></i>
+                    <span>+6391-1234-5678</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-[11px] font-bold text-gray-700">Primary Contact</label>
+                  <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Jahnea Segovia</div>
+                </div>
+              </div>
+
+              <button onclick="toggleModal('foodBankViewModal'); toggleModal('foodBankEditModal');" class="w-full bg-[#8BC3A3] hover:bg-[#78b392] text-[#1B4D3E] font-black text-xs py-3 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2">
+                <span>View Registration Docs</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Beneficiary Metrics</h4>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <p class="text-[11px] font-bold text-gray-500">Donations Received</p>
+                  <h5 class="text-2xl font-black text-gray-900 mt-0.5">128</h5>
+                </div>
+                <div>
+                  <p class="text-[11px] font-bold text-gray-500">Active Volunteers</p>
+                  <h5 class="text-2xl font-black text-gray-900 mt-0.5">34</h5>
+                </div>
+              </div>
+              <div class="pt-1 border-t border-gray-50">
+                <p class="text-[11px] font-bold text-gray-500">Families Fed</p>
+                <h5 class="text-2xl font-black text-gray-900 mt-0.5">1,240</h5>
+              </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Recent Intake Distribution</h4>
+              <div class="space-y-2 text-xs">
+                <div class="flex items-start gap-2">
+                  <span class="font-bold text-gray-700 w-16 shrink-0">Today</span>
+                  <span class="text-gray-600 font-medium">- Received 50 pastries from Nena's</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="font-bold text-gray-700 w-16 shrink-0">04/07/26</span>
+                  <span class="text-gray-600 font-medium">- Distributed 100 surplus meals</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm">
+              <span class="bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase">VERIFIED NGO</span>
+              <div class="text-[10px] text-[#1B4D3E] font-bold leading-tight">
+                <p>Registration Date:</p>
+                <p class="font-black">2025-02-15</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full md:w-auto">
+              <button class="bg-[#8BC3A3] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm">FLAG PROFILE</button>
+              <button class="bg-[#8BC3A3] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm">SUSPEND USER</button>
+              <button class="bg-[#8BC3A3] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm">RE-VERIFY</button>
+              <button class="bg-[#8BC3A3] text-[#1B4D3E] text-[10px] font-black uppercase px-3 py-2.5 rounded-xl border border-[#3A826D]/20 shadow-sm">SEND ANNOUNCEMENT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. FOOD BANK EDIT / REGISTRATION REVIEW MODAL -->
+    <div id="foodBankEditModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[760px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+              <i data-lucide="hand-heart" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-black text-[#1B4D3E] text-base tracking-tight">Food Bank/NGO</h3>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <span class="bg-[#EBB338] text-white text-[11px] font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">PENDING APPROVAL</span>
+              <p class="text-[10px] text-gray-700 font-bold mt-1">Registration Date: 2025-02-15</p>
+            </div>
+            <button onclick="toggleModal('foodBankEditModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+          </div>
+        </div>
+
+        <div class="p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+          <div class="md:col-span-5 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
+            <h4 class="font-black text-[#1B4D3E] text-sm">Organization Details</h4>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Type</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Non-profit hub</div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Physical Address</label>
+              <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-start gap-1">
+                <span class="text-red-500 font-bold">📍</span>
+                <span class="leading-tight">Purok Butterfly, Pusok, Lapu-Lapu City, Cebu</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Mission Statement</label>
+              <div class="bg-gray-100/80 px-3 py-2 rounded-lg text-gray-800 font-semibold mt-0.5">Distributing surplus to underserved families</div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Email</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                <i data-lucide="mail" class="w-3.5 h-3.5 text-gray-600"></i>
+                <span>foodbank@gmail.com</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Phone</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5 flex items-center gap-1.5">
+                <i data-lucide="phone" class="w-3.5 h-3.5 text-gray-600"></i>
+                <span>+6391-1234-5678</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-gray-700">Primary Contact</label>
+              <div class="bg-gray-100/80 px-3 py-1.5 rounded-lg text-gray-800 font-semibold mt-0.5">Jahnea Segovia</div>
+            </div>
+          </div>
+
+          <div class="md:col-span-7 space-y-3">
+            <h4 class="font-black text-[#1B4D3E] text-sm">Uploaded Documents & OCR AI Verification</h4>
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3 text-xs">
+              <div class="w-24 h-32 bg-gray-100 rounded-xl border flex flex-col items-center justify-center p-2 shrink-0 text-center">
+                <span class="text-[9px] font-black uppercase text-emerald-800">ORG REGISTRATION</span>
+                <i data-lucide="award" class="w-8 h-8 text-gray-400 my-1"></i>
+                <span class="text-[8px] text-gray-500 font-semibold">ngo_cert.pdf</span>
+              </div>
+              <div class="space-y-1.5 flex-1">
+                <p class="font-black text-[#1B4D3E] text-[11px]">OCR Extracted Texts</p>
+                <p class="text-[10px] text-gray-600 font-medium">Organization Name: <strong class="text-gray-800">Food Bank</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">EIN #: <strong class="text-gray-800">1234565</strong></p>
+                <p class="text-[10px] text-gray-600 font-medium">Filing Date: <strong class="text-gray-800">January 12, 2027</strong></p>
+                <div class="inline-block bg-[#8BC3A3]/30 text-[#1B4D3E] font-black text-[9px] px-2 py-0.5 rounded-md">Confidence Score: 80%</div>
+                <div class="flex gap-2 pt-1">
+                  <button class="bg-[#3A826D] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Re-run OCR</button>
+                  <button class="bg-[#1B4D3E] text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">Mark as Confirmed</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex flex-wrap justify-end gap-2.5">
+          <button onclick="toggleModal('foodBankEditModal')" class="bg-[#8BC3A3] text-[#1B4D3E] font-black text-xs px-5 py-2.5 rounded-xl hover:bg-[#78b392]">REQUEST RESUBMISSION</button>
+          <button onclick="toggleModal('foodBankEditModal')" class="bg-white border border-gray-300 text-gray-700 font-black text-xs px-5 py-2.5 rounded-xl hover:bg-gray-50">REJECT PROFILE</button>
+          <button onclick="approveMerchantKYB('NGO-101')" class="bg-[#8BC3A3] text-[#1B4D3E] font-black text-xs px-6 py-2.5 rounded-xl hover:bg-[#78b392]">APPROVE PROFILE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. CONSUMER VIEW MODAL -->
+    <div id="consumerViewModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black">Y</div>
+            <div>
+              <h3 class="font-black text-[#1B4D3E] text-base">Yang Jungwon</h3>
+              <p class="text-[10px] text-gray-700 font-bold">Consumer Member</p>
+            </div>
+          </div>
+          <button onclick="toggleModal('consumerViewModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+            <h4 class="font-black text-[#1B4D3E] text-sm">Consumer Overview</h4>
+            <p><strong>Email:</strong> yang.jungwon@gmail.com</p>
+            <p><strong>Phone:</strong> +6391-9988-7766</p>
+            <p><strong>Physical Address:</strong> Lapu-Lapu City, Cebu</p>
+            <p><strong>Surplus Rescued:</strong> 34 meal packages</p>
+            <p><strong>Joined Date:</strong> 2026-04-07</p>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end">
+          <button onclick="toggleModal('consumerViewModal')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2 rounded-xl font-bold">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. CONSUMER EDIT / STATUS MODAL -->
+    <div id="consumerEditModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <h3 class="font-black text-[#1B4D3E] text-base">Edit Consumer Account</h3>
+          <button onclick="toggleModal('consumerEditModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Account Status</label>
+              <select class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none">
+                <option selected>Active / Good Standing</option>
+                <option>Restricted</option>
+                <option>Suspended</option>
+              </select>
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Moderator Note</label>
+              <textarea class="w-full p-2 bg-gray-50 border rounded-xl text-xs focus:outline-none" rows="3" placeholder="Add administrative verification or penalty note..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end gap-2">
+          <button onclick="toggleModal('consumerEditModal')" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl font-bold">Cancel</button>
+          <button onclick="toggleModal('consumerEditModal'); alert('Consumer status saved!');" class="bg-[#1B4D3E] text-white px-5 py-2 rounded-xl font-bold">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. UNIFIED USER HISTORY MODAL -->
+    <div id="userHistoryModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[620px] max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        
+        <!-- Modal Top Bar -->
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+              <i data-lucide="store" class="w-5 h-5"></i>
+            </div>
+            <h3 id="historyModalTitle" class="font-black text-[#1B4D3E] text-base tracking-tight">Nena’s Bakeshop</h3>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
+                <i data-lucide="user" class="w-5 h-5"></i>
+              </div>
+              <div class="text-right">
+                <p id="historyModalUser" class="font-black text-[#1B4D3E] text-xs leading-tight">Kate Cogtas</p>
+                <p class="text-[11px] text-gray-700 font-bold">+6391-2345-678</p>
+              </div>
+            </div>
+            <button onclick="toggleModal('userHistoryModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+          </div>
+        </div>
+
+        <!-- History Content Container -->
+        <div class="p-5">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h4 class="font-black text-[#1B4D3E] text-xl mb-4">User History</h4>
+            
+            <div id="historyListContainer" class="space-y-0 text-xs font-semibold overflow-hidden rounded-xl border border-gray-100">
+              <!-- Alternating Green & White Stripes Matching Template -->
+              <div class="bg-[#D2E7DD] px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-white px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-[#D2E7DD] px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-white px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-[#D2E7DD] px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-white px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-[#D2E7DD] px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-white px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-[#D2E7DD] px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-white px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+              <div class="bg-[#D2E7DD] px-4 py-2.5 flex items-center gap-6">
+                <span class="w-24 text-gray-700 shrink-0">2026-04-12</span>
+                <span class="text-gray-900">Posted Food Listing: Ensaymada</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+  
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+    });
+  </script>
+  <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>

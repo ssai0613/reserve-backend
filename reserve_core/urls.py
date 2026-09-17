@@ -1,26 +1,20 @@
-"""
-URL configuration for reserve_core project.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
+from accounts import views as custom_admin_views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Default Django Admin (Moved slightly so it doesn't conflict with your custom dashboard)
+    path('sys-admin/', admin.site.urls), 
+    
+    # API Endpoints
     path('api/accounts/', include('accounts.urls')),
-    path('api/auth/', include('dj_rest_auth.urls')),
-    path('api/auth/registration/', include('dj_rest_auth.registration.urls')),
-    path('api/auth/social/', include('allauth.urls')),
+    
+    # Teammates' Custom Admin GUI Routes
+    path('', custom_admin_views.admin_dashboard, name='custom-dashboard'),
+    path('users/', custom_admin_views.admin_users, name='custom-users'),
+    path('food-listing/', custom_admin_views.admin_food_listing, name='custom-food-listing'),
+    path('donations/', custom_admin_views.admin_donations, name='custom-donations'),
+    path('payouts/', custom_admin_views.admin_payouts, name='custom-payouts'),
+    path('announcements/', custom_admin_views.admin_announcements, name='custom-announcements'),
 ]

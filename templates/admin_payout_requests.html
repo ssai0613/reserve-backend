@@ -1,0 +1,184 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReServe Admin - Payout Requests</title>
+  <link rel="stylesheet" href="{% static 'css/compiled.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[#F4F8F6] min-h-screen w-screen overflow-x-hidden flex flex-col font-sans antialiased text-gray-800">
+
+  <!-- UNIFIED STICKY TOP NAVIGATION BAR -->
+  <header class="bg-[#8BC3A3] px-4 md:px-8 py-3.5 flex justify-between items-center shrink-0 border-b border-[#1B4D3E]/10 shadow-sm sticky top-0 z-50 w-full">
+    <div class="flex items-center gap-3 shrink-0">
+      <h1 class="text-xl md:text-2xl font-black text-[#1B4D3E] tracking-widest uppercase">RESERVE</h1>
+      <span class="text-[10px] font-black bg-[#1B4D3E] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">Admin</span>
+    </div>
+
+    <nav id="mainNavbar" class="hidden lg:flex flex-col lg:flex-row absolute lg:static top-full left-0 w-full lg:w-auto bg-[#8BC3A3] lg:bg-transparent p-4 lg:p-0 border-t lg:border-t-0 border-[#1B4D3E]/10 shadow-2xl lg:shadow-none gap-2 lg:gap-1.5 z-40">
+      <a href="/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i><span>Dashboard</span>
+      </a>
+      <a href="/users/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="users" class="w-4 h-4"></i><span>Users</span>
+      </a>
+      <a href="/food-listing/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="utensils" class="w-4 h-4"></i><span>Food Listing</span>
+      </a>
+      <a href="/donations/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="hand-heart" class="w-4 h-4"></i><span>Donations</span>
+      </a>
+      <a href="/payouts/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black bg-white text-[#1B4D3E] shadow-sm">
+        <i data-lucide="arrow-left-right" class="w-4 h-4"></i><span>Payouts</span>
+      </a>
+      <a href="/announcements/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="megaphone" class="w-4 h-4"></i><span>Announcements</span>
+      </a>
+    </nav>
+
+    <div class="flex items-center gap-2 md:gap-3 shrink-0">
+      <div class="relative">
+        <button id="notifMenuBtn" onclick="toggleNotifMenu()" class="p-2 bg-white/50 hover:bg-white rounded-xl transition-all border border-white/60 shadow-sm focus:outline-none relative">
+          <i data-lucide="bell" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <span id="notifBadge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+        </button>
+        <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border p-4 space-y-2 z-50 text-xs">
+          <h4 class="font-black text-[#1B4D3E] border-b pb-1">Notifications & Alerts</h4>
+          <p class="text-amber-800 bg-amber-50 p-2 rounded-xl border-l-4 border-amber-500 font-bold">New Payout withdrawal request submitted.</p>
+        </div>
+      </div>
+
+      <div class="relative">
+        <button id="adminMenuBtn" onclick="toggleAdminMenu()" class="flex items-center gap-2 bg-white/50 hover:bg-white px-3 py-1.5 rounded-xl border border-white/60 shadow-sm cursor-pointer transition-all focus:outline-none">
+          <div class="w-6 h-6 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black text-[10px]">A</div>
+          <span class="text-xs font-bold text-[#1B4D3E] hidden sm:inline">System Admin</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[#1B4D3E]"></i>
+        </button>
+        <div id="adminDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl border py-2 z-50 text-xs font-bold">
+          <button onclick="openAdminProfile()" class="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700">Profile Settings</button>
+          <hr class="my-1 border-gray-100">
+          <button onclick="handleLogout()" class="w-full text-left px-4 py-2 hover:bg-red-50 text-rose-600 flex items-center gap-2">Logout System</button>
+        </div>
+      </div>
+
+      <button onclick="toggleMobileNav()" class="lg:hidden p-2 bg-white/50 hover:bg-white rounded-xl text-[#1B4D3E] focus:outline-none shadow-sm">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- FULL-WIDTH CONTENT -->
+  <main class="flex-1 w-full px-4 md:px-8 py-6 space-y-6">
+    <div>
+      <h2 class="text-2xl font-black text-[#1B4D3E] tracking-tight">Merchant Payout Requests</h2>
+      <p class="text-xs font-semibold text-gray-400">Review, approve, and execute GCash digital wallet payouts</p>
+    </div>
+
+    <!-- Gradient Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-gradient-to-r from-[#1B4D3E] to-[#2D6A56] p-5 rounded-3xl text-white shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest opacity-80">Total Requests</p>
+        <h3 class="text-3xl font-black mt-1">101</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Pending Approval</p>
+        <h3 class="text-3xl font-black text-amber-500 mt-1">3,241</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Successful</p>
+        <h3 class="text-3xl font-black text-emerald-600 mt-1">5,000</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Processing</p>
+        <h3 class="text-3xl font-black text-[#3A826D] mt-1">123</h3>
+      </div>
+    </div>
+
+    <!-- Full-Width Styled Table -->
+    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+      <table class="w-full text-left text-xs min-w-[600px]">
+        <thead class="bg-[#1B4D3E] text-white font-bold uppercase tracking-wider text-[10px]">
+          <tr>
+            <th class="p-3.5">Request ID</th>
+            <th class="p-3.5">Merchant / User</th>
+            <th class="p-3.5">Date</th>
+            <th class="p-3.5">Current Balance</th>
+            <th class="p-3.5">Requested Amt (₱)</th>
+            <th class="p-3.5">Status</th>
+            <th class="p-3.5">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 font-medium">
+          <tr class="hover:bg-gray-50/80">
+            <td class="p-3.5 font-bold text-gray-700">PO-101</td>
+            <td class="p-3.5 font-bold text-[#1B4D3E]">Nena's Bakeshop</td>
+            <td class="p-3.5 text-gray-500">2026-04-07</td>
+            <td class="p-3.5 text-gray-700">₱12,000.00</td>
+            <td class="p-3.5 font-black text-[#1B4D3E] text-sm">₱10,000.00</td>
+            <td class="p-3.5"><span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Pending</span></td>
+            <td class="p-3.5 flex items-center gap-3">
+              <i data-lucide="check" class="w-4 h-4 text-emerald-600 cursor-pointer hover:scale-125" onclick="approvePayout(this, 'PO-101')"></i>
+              <i data-lucide="x-circle" class="w-4 h-4 text-rose-600 cursor-pointer hover:scale-125" onclick="rejectPayout(this, 'PO-101')"></i>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!--                               MODALS LAYER                                -->
+    <!-- ========================================================================= -->
+
+    <!-- 0. ADMIN PROFILE MODAL -->
+    <div id="adminProfileModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black">A</div>
+            <div>
+              <h3 class="font-black text-[#1B4D3E] text-base">System Administrator</h3>
+              <p class="text-[10px] text-gray-700 font-bold">Admin Profile Settings</p>
+            </div>
+          </div>
+          <button onclick="toggleModal('adminProfileModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Admin Username</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="system_admin" readonly>
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Email Address</label>
+              <input type="email" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="admin@reserve.org">
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Security Role</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs text-emerald-800 focus:outline-none" value="Super Administrator" readonly>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end gap-2">
+          <button onclick="toggleModal('adminProfileModal')" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl font-bold text-xs">Cancel</button>
+          <button onclick="toggleModal('adminProfileModal'); alert('Admin profile settings updated!');" class="bg-[#1B4D3E] text-white px-5 py-2 rounded-xl font-bold text-xs">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+  
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+    });
+  </script>
+
+  <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>

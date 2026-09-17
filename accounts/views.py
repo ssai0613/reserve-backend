@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserRegistrationSerializer, CustomLoginSerializer
-from .models import Consumer, Merchant, User
+from .models import Consumer, Merchant, User, FoodBank
 from django.contrib.auth.hashers import check_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -17,6 +17,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import render
 
 class UserRegistrationView(APIView):
     def post(self, request):
@@ -119,3 +120,57 @@ class AdminMerchantApprovalView(APIView):
             return Response({"message": f"Merchant {merchant.bus_name} application has been rejected."}, status=status.HTTP_200_OK)
 
         return Response({"error": "Invalid action parameter. Use 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+    
+
+
+# --- CUSTOM ADMIN GUI VIEWS ---
+
+def admin_dashboard(request):
+    # Fetch live counts from Supabase
+    active_merchants_count = Merchant.objects.filter(status='Active').count()
+    pending_merchants_count = Merchant.objects.filter(status='Pending').count()
+    total_consumers = Consumer.objects.count()
+    total_foodbanks = FoodBank.objects.count()
+
+    # Pass the data to the HTML template
+    context = {
+        'active_merchants': active_merchants_count,
+        'pending_merchants': pending_merchants_count,
+        'total_consumers': total_consumers,
+        'total_foodbanks': total_foodbanks,
+    }
+    return render(request, 'admin_dashboard.html', context)
+
+def admin_users(request):
+    # Fetch actual users and order them by newest first
+    consumers = Consumer.objects.select_related('user').all().order_by('-user__created_at')
+    merchants = Merchant.objects.select_related('user').all().order_by('-user__created_at')
+    foodbanks = FoodBank.objects.select_related('user').all().order_by('-user__created_at')
+
+    context = {
+        'consumers': consumers,
+        'merchants': merchants,
+        'foodbanks': foodbanks,
+        
+        # Stat cards data
+        'total_registered': consumers.count() + merchants.count() + foodbanks.count(),
+        'active_accounts': merchants.filter(status='Active').count(),
+        'banned_accounts': merchants.filter(status='Suspended').count(), # Example status
+    }
+    return render(request, 'admin_user_manage.html', context)
+
+def admin_food_listing(request):
+    return render(request, 'admin_food_listing.html')
+
+def admin_donations(request):
+    return render(request, 'admin_donation_hub.html')
+
+def admin_payouts(request):
+    return render(request, 'admin_payout_requests.html')
+
+def admin_announcements(request):
+    return render(request, 'admin_announcements.html')

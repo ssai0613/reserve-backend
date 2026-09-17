@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #2b2b2b;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom Hex Colors for ReServe Admin Theme */
+:root {
+  --color-reserve-sidebar: #8BC3A3;
+  --color-reserve-bg: #E2EFE7;
+  --color-reserve-darkGreen: #1B4D3E;
+  --color-reserve-accentGreen: #3A826D;
+  --color-reserve-deepGreen: #1C4336;
+  --color-reserve-sageCard: #A2C9B6;
+  --color-reserve-badgeYellow: #EBB338;
+}

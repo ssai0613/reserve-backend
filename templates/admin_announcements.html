@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReServe Admin - System Announcements</title>
+  <link rel="stylesheet" href="{% static 'css/compiled.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[#F4F8F6] min-h-screen w-screen overflow-x-hidden flex flex-col font-sans antialiased text-gray-800">
+
+  <header class="bg-[#8BC3A3] px-4 md:px-8 py-3.5 flex justify-between items-center shrink-0 border-b border-[#1B4D3E]/10 shadow-sm sticky top-0 z-50 w-full">
+    <div class="flex items-center gap-3 shrink-0">
+      <h1 class="text-xl md:text-2xl font-black text-[#1B4D3E] tracking-widest uppercase">RESERVE</h1>
+      <span class="text-[10px] font-black bg-[#1B4D3E] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">Admin</span>
+    </div>
+
+    <nav id="mainNavbar" class="hidden lg:flex flex-col lg:flex-row absolute lg:static top-full left-0 w-full lg:w-auto bg-[#8BC3A3] lg:bg-transparent p-4 lg:p-0 border-t lg:border-t-0 border-[#1B4D3E]/10 shadow-2xl lg:shadow-none gap-2 lg:gap-1.5 z-40">
+      <a href="/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i><span>Dashboard</span>
+      </a>
+      <a href="/users/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="users" class="w-4 h-4"></i><span>Users</span>
+      </a>
+      <a href="/food-listing/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="utensils" class="w-4 h-4"></i><span>Food Listing</span>
+      </a>
+      <a href="/donations/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="hand-heart" class="w-4 h-4"></i><span>Donations</span>
+      </a>
+      <a href="/payouts/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="arrow-left-right" class="w-4 h-4"></i><span>Payouts</span>
+      </a>
+      <a href="/announcements/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black bg-white text-[#1B4D3E] shadow-sm">
+        <i data-lucide="megaphone" class="w-4 h-4"></i><span>Announcements</span>
+      </a>
+    </nav>
+
+    <div class="flex items-center gap-2 md:gap-3 shrink-0">
+      <div class="relative">
+        <button id="notifMenuBtn" onclick="toggleNotifMenu()" class="p-2 bg-white/50 hover:bg-white rounded-xl transition-all border border-white/60 shadow-sm focus:outline-none relative">
+          <i data-lucide="bell" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <span id="notifBadge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+        </button>
+        <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border p-4 space-y-2 z-50 text-xs">
+          <h4 class="font-black text-[#1B4D3E] border-b pb-1">Notifications & Alerts</h4>
+          <p class="text-gray-600">Broadcast history updated.</p>
+        </div>
+      </div>
+
+      <div class="relative">
+        <button id="adminMenuBtn" onclick="toggleAdminMenu()" class="flex items-center gap-2 bg-white/50 hover:bg-white px-3 py-1.5 rounded-xl border border-white/60 shadow-sm cursor-pointer transition-all focus:outline-none">
+          <div class="w-6 h-6 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black text-[10px]">A</div>
+          <span class="text-xs font-bold text-[#1B4D3E] hidden sm:inline">System Admin</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[#1B4D3E]"></i>
+        </button>
+        <div id="adminDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl border py-2 z-50 text-xs font-bold">
+          <button onclick="openAdminProfile()" class="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700">Profile Settings</button>
+          <hr class="my-1 border-gray-100">
+          <button onclick="handleLogout()" class="w-full text-left px-4 py-2 hover:bg-red-50 text-rose-600 flex items-center gap-2">Logout System</button>
+        </div>
+      </div>
+
+      <button onclick="toggleMobileNav()" class="lg:hidden p-2 bg-white/50 hover:bg-white rounded-xl text-[#1B4D3E] focus:outline-none shadow-sm">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+
+  <main class="flex-1 w-full px-4 md:px-8 py-6 space-y-6">
+    <div>
+      <h2 class="text-2xl font-black text-[#1B4D3E] tracking-tight">System Announcements & Alerts</h2>
+      <p class="text-xs font-semibold text-gray-400">Publish push notifications, updates and maintenance broadcasts</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <form onsubmit="handleAnnouncementSubmit(event)" class="lg:col-span-5 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+        <h4 class="font-black text-[#1B4D3E] text-sm border-b pb-2">Create New Broadcast</h4>
+        <div>
+          <label class="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-1.5">Target Audience</label>
+          <select id="announcementAudience" class="w-full p-3 border border-gray-200 rounded-2xl text-xs bg-gray-50 focus:outline-none font-bold">
+            <option>All Users (System-wide)</option>
+            <option>Merchants Only</option>
+            <option>Food Banks / NGOs Only</option>
+            <option>Consumers Only</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-1.5">Headline / Title</label>
+          <input id="announcementTitle" type="text" placeholder="e.g. Scheduled System Upgrade" class="w-full p-3 border border-gray-200 rounded-2xl text-xs focus:outline-none font-medium">
+        </div>
+        <div>
+          <label class="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-1.5">Message Body</label>
+          <textarea id="announcementBody" rows="4" placeholder="Enter full announcement details..." class="w-full p-3 border border-gray-200 rounded-2xl text-xs focus:outline-none font-medium"></textarea>
+        </div>
+        <button type="submit" class="w-full bg-[#1B4D3E] text-white text-xs font-bold py-3.5 rounded-2xl hover:bg-opacity-90 shadow-sm transition-all">
+          Publish Broadcast
+        </button>
+      </form>
+
+      <div class="lg:col-span-7 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <h4 class="font-black text-[#1B4D3E] text-sm mb-4 border-b pb-2">Broadcast History</h4>
+        <div id="announcementHistoryList" class="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+          <div class="border border-gray-100 p-4 rounded-2xl bg-white flex justify-between items-start shadow-sm hover:shadow-md transition-all">
+            <div>
+              <span class="text-[10px] font-black tracking-wider uppercase bg-[#8BC3A3]/30 text-[#1B4D3E] px-3 py-1 rounded-full border border-[#8BC3A3]/40">Merchants Only</span>
+              <h5 class="font-bold text-sm text-gray-800 mt-2">Updated Commission Fee Rates</h5>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed">Please review the updated Pro vs Basic tier transaction fees in your dashboard.</p>
+              <p class="text-[10px] text-gray-400 font-medium mt-2">Posted on: 04/07/2026 10:00 AM</p>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-rose-500 transition-colors p-1">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!--                               MODALS LAYER                                -->
+    <!-- ========================================================================= -->
+
+    <!-- 0. ADMIN PROFILE MODAL -->
+    <div id="adminProfileModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black">A</div>
+            <div>
+              <h3 class="font-black text-[#1B4D3E] text-base">System Administrator</h3>
+              <p class="text-[10px] text-gray-700 font-bold">Admin Profile Settings</p>
+            </div>
+          </div>
+          <button onclick="toggleModal('adminProfileModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Admin Username</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="system_admin" readonly>
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Email Address</label>
+              <input type="email" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="admin@reserve.org">
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Security Role</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs text-emerald-800 focus:outline-none" value="Super Administrator" readonly>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end gap-2">
+          <button onclick="toggleModal('adminProfileModal')" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl font-bold text-xs">Cancel</button>
+          <button onclick="toggleModal('adminProfileModal'); alert('Admin profile settings updated!');" class="bg-[#1B4D3E] text-white px-5 py-2 rounded-xl font-bold text-xs">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Initialize Icons -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+    });
+  </script>
+
+  <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>

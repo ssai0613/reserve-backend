@@ -1,0 +1,328 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReServe Admin - Food Listing</title>
+  <link rel="stylesheet" href="{% static 'css/compiled.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+</head>
+<body class="bg-[#F4F8F6] min-h-screen w-screen overflow-x-hidden flex flex-col font-sans antialiased text-gray-800">
+
+
+  <header class="bg-[#8BC3A3] px-4 md:px-8 py-3.5 flex justify-between items-center shrink-0 border-b border-[#1B4D3E]/10 shadow-sm sticky top-0 z-50 w-full">
+    <div class="flex items-center gap-3 shrink-0">
+      <h1 class="text-xl md:text-2xl font-black text-[#1B4D3E] tracking-widest uppercase">RESERVE</h1>
+      <span class="text-[10px] font-black bg-[#1B4D3E] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">Admin</span>
+    </div>
+
+    <!-- Navigation Links -->
+    <nav id="mainNavbar" class="hidden lg:flex flex-col lg:flex-row absolute lg:static top-full left-0 w-full lg:w-auto bg-[#8BC3A3] lg:bg-transparent p-4 lg:p-0 border-t lg:border-t-0 border-[#1B4D3E]/10 shadow-2xl lg:shadow-none gap-2 lg:gap-1.5 z-40">
+      <a href="/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i><span>Dashboard</span>
+      </a>
+      <a href="/users/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="users" class="w-4 h-4"></i><span>Users</span>
+      </a>
+      <a href="/food-listing/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black bg-white text-[#1B4D3E] shadow-sm">
+        <i data-lucide="utensils" class="w-4 h-4"></i><span>Food Listing</span>
+      </a>
+      <a href="/donations/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="hand-heart" class="w-4 h-4"></i><span>Donations</span>
+      </a>
+      <a href="/payouts/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="arrow-left-right" class="w-4 h-4"></i><span>Payouts</span>
+      </a>
+      <a href="/announcements/" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1B4D3E]/90 hover:bg-white/40 lg:hover:bg-white/30 transition-all">
+        <i data-lucide="megaphone" class="w-4 h-4"></i><span>Announcements</span>
+      </a>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="flex items-center gap-2 md:gap-3 shrink-0">
+      <div class="relative">
+        <button id="notifMenuBtn" onclick="toggleNotifMenu()" class="p-2 bg-white/50 hover:bg-white rounded-xl transition-all border border-white/60 shadow-sm focus:outline-none relative">
+          <i data-lucide="bell" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <span id="notifBadge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+        </button>
+        <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border p-4 space-y-2 z-50 text-xs">
+          <h4 class="font-black text-[#1B4D3E] border-b pb-1">Notifications & Alerts</h4>
+          <p class="text-rose-700 bg-rose-50 p-2 rounded-xl border-l-4 border-rose-500 font-bold">Critical - Server Load High</p>
+        </div>
+      </div>
+
+      <div class="relative">
+        <button id="adminMenuBtn" onclick="toggleAdminMenu()" class="flex items-center gap-2 bg-white/50 hover:bg-white px-3 py-1.5 rounded-xl border border-white/60 shadow-sm cursor-pointer transition-all focus:outline-none">
+          <div class="w-6 h-6 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black text-[10px]">A</div>
+          <span class="text-xs font-bold text-[#1B4D3E] hidden sm:inline">System Admin</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[#1B4D3E]"></i>
+        </button>
+        <div id="adminDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl border py-2 z-50 text-xs font-bold">
+          <button onclick="openAdminProfile()" class="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700">Profile Settings</button>
+          <hr class="my-1 border-gray-100">
+          <button onclick="handleLogout()" class="w-full text-left px-4 py-2 hover:bg-red-50 text-rose-600 flex items-center gap-2">Logout System</button>
+        </div>
+      </div>
+
+      <button onclick="toggleMobileNav()" class="lg:hidden p-2 bg-white/50 hover:bg-white rounded-xl text-[#1B4D3E] focus:outline-none shadow-sm">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- FULL-WIDTH CONTENT AREA -->
+  <main class="flex-1 w-full px-4 md:px-8 py-6 space-y-6">
+    <div>
+      <h2 class="text-2xl font-black text-[#1B4D3E] tracking-tight">Food Listing Control</h2>
+      <p class="text-xs font-semibold text-gray-400">Monitor active produce listings, discounts, and TTT shelf-life status</p>
+    </div>
+
+    <!-- Gradient Metric Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-gradient-to-r from-[#1B4D3E] to-[#2D6A56] p-5 rounded-3xl text-white shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest opacity-80">Active Listings</p>
+        <h3 class="text-3xl font-black mt-1">100,000</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Stores</p>
+        <h3 class="text-3xl font-black text-[#1B4D3E] mt-1">250</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Claimed Produce</p>
+        <h3 class="text-3xl font-black text-[#3A826D] mt-1">5,000</h3>
+      </div>
+      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Flagged For Review</p>
+        <h3 id="flaggedCountBadge" class="text-3xl font-black text-rose-600 mt-1">123</h3>
+      </div>
+    </div>
+
+    <!-- Control Bar -->
+    <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
+      <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+        <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl border text-xs flex-1">
+          <i data-lucide="calendar" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <span class="font-black text-[#1B4D3E]">Date Filter:</span>
+          <input type="text" class="date-range-picker w-full bg-transparent font-bold text-gray-700 focus:outline-none text-[11px]" placeholder="Pick listing date range...">
+          <button onclick="clearCalendarFilter()" class="text-gray-400 hover:text-rose-500 font-bold px-1.5" title="Clear Filter">✕</button>
+        </div>
+
+        <select onchange="triggerSortByCriteria(this)" class="p-2.5 bg-[#3A826D] text-white rounded-2xl text-xs font-bold shadow-sm focus:outline-none cursor-pointer">
+          <option value="">Sort Criteria...</option>
+          <option value="item-asc">Item Name (A-Z)</option>
+          <option value="item-desc">Item Name (Z-A)</option>
+          <option value="date-desc">Listing Date (Newest)</option>
+          <option value="date-asc">Listing Date (Oldest)</option>
+        </select>
+
+        <div class="relative flex-1">
+          <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3.5 top-3"></i>
+          <input type="text" placeholder="Search food title, shop name..." class="w-full pl-10 pr-4 py-2.5 bg-gray-50 rounded-2xl text-xs border focus:outline-none font-medium">
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-Width Styled Table -->
+    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+      <table class="w-full text-left text-xs min-w-[600px]">
+        <thead class="bg-[#1B4D3E] text-white font-bold uppercase tracking-wider text-[10px]">
+          <tr>
+            <th class="p-3.5"><input type="checkbox" onclick="toggleSelectAll(this)"></th>
+            <th class="p-3.5">Food Item</th>
+            <th class="p-3.5">Establishment</th>
+            <th class="p-3.5">Listing Date</th>
+            <th class="p-3.5">Quantity</th>
+            <th class="p-3.5">Category</th>
+            <th class="p-3.5">Status</th>
+            <th class="p-3.5">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 font-medium">
+          <!-- Row 1 -->
+          <tr id="row-FL-101" class="hover:bg-gray-50/80">
+            <td class="p-3.5"><input type="checkbox"></td>
+            <td class="p-3.5">
+              <div class="flex items-center gap-2">
+                <i data-lucide="flag" class="listing-flag-icon w-3.5 h-3.5 text-gray-300 transition-colors"></i>
+                <span class="font-bold text-[#1B4D3E]">Dubai Chewy Cookie</span>
+              </div>
+            </td>
+            <td class="p-3.5 text-gray-700 font-semibold">Nena's Bakeshop</td>
+            <td class="p-3.5 text-gray-500">2026-04-03</td>
+            <td class="p-3.5 font-black">50</td>
+            <td class="p-3.5"><span class="bg-gray-100 px-2.5 py-0.5 rounded-full font-bold text-gray-700 text-[10px]">Bakery</span></td>
+            <td class="p-3.5 status-cell"><span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span></td>
+            <td class="p-3.5 flex items-center gap-3">
+              <i data-lucide="eye" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="openFoodDetailModal('FL-101')"></i>
+              <i data-lucide="trash-2" class="w-4 h-4 text-rose-500 cursor-pointer hover:scale-125 transition-transform" onclick="removeFoodListing(this)"></i>
+            </td>
+          </tr>
+
+          <!-- Row 2 -->
+          <tr id="row-FL-102" class="hover:bg-gray-50/80">
+            <td class="p-3.5"><input type="checkbox"></td>
+            <td class="p-3.5">
+              <div class="flex items-center gap-2">
+                <i data-lucide="flag" class="listing-flag-icon w-3.5 h-3.5 text-gray-300 transition-colors"></i>
+                <span class="font-bold text-[#1B4D3E]">Artisan Sourdough</span>
+              </div>
+            </td>
+            <td class="p-3.5 text-gray-700 font-semibold">Cebu Daily Bakes</td>
+            <td class="p-3.5 text-gray-500">2026-04-07</td>
+            <td class="p-3.5 font-black">20</td>
+            <td class="p-3.5"><span class="bg-gray-100 px-2.5 py-0.5 rounded-full font-bold text-gray-700 text-[10px]">Bakery</span></td>
+            <td class="p-3.5 status-cell"><span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Near Expiry</span></td>
+            <td class="p-3.5 flex items-center gap-3">
+              <i data-lucide="eye" class="w-4 h-4 text-[#1B4D3E] cursor-pointer hover:scale-125 transition-transform" onclick="openFoodDetailModal('FL-102')"></i>
+              <i data-lucide="trash-2" class="w-4 h-4 text-rose-500 cursor-pointer hover:scale-125 transition-transform" onclick="removeFoodListing(this)"></i>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!--                               MODALS LAYER                                -->
+    <!-- ========================================================================= -->
+
+    <!-- 0. ADMIN PROFILE MODAL -->
+    <div id="adminProfileModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black">A</div>
+            <div>
+              <h3 class="font-black text-[#1B4D3E] text-base">System Administrator</h3>
+              <p class="text-[10px] text-gray-700 font-bold">Admin Profile Settings</p>
+            </div>
+          </div>
+          <button onclick="toggleModal('adminProfileModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Admin Username</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="system_admin" readonly>
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Email Address</label>
+              <input type="email" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs focus:outline-none" value="admin@reserve.org">
+            </div>
+            <div>
+              <label class="font-bold text-gray-700 block mb-1">Security Role</label>
+              <input type="text" class="w-full p-2 bg-gray-50 border rounded-xl font-bold text-xs text-emerald-800 focus:outline-none" value="Super Administrator" readonly>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end gap-2">
+          <button onclick="toggleModal('adminProfileModal')" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl font-bold text-xs">Cancel</button>
+          <button onclick="toggleModal('adminProfileModal'); alert('Admin profile settings updated!');" class="bg-[#1B4D3E] text-white px-5 py-2 rounded-xl font-bold text-xs">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. FOOD LISTING VIEW MODAL -->
+    <div id="foodModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-white rounded-[32px] w-full max-w-[540px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        
+        <!-- Header with Title and Exit Button (X) -->
+        <div class="bg-[#D2E7DD] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <h3 id="foodModalTitle" class="font-black text-[#1B4D3E] text-lg tracking-tight">Dubai Chewy Cookie</h3>
+          <button onclick="toggleModal('foodModal')" class="w-8 h-8 rounded-full bg-white/70 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">
+            ✕
+          </button>
+        </div>
+
+        <!-- Modal Body Content -->
+        <div class="p-6 space-y-5">
+          
+          <!-- Product Photo & Item Specs Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 items-start">
+            <div class="sm:col-span-5 w-full h-56 rounded-2xl overflow-hidden shadow-inner border border-gray-100 bg-amber-50 relative flex items-center justify-center">
+              <div class="w-full h-full bg-gradient-to-br from-amber-700/80 to-amber-900 flex flex-col items-center justify-center text-white p-3 text-center">
+                <i data-lucide="cookie" class="w-12 h-12 mb-2 opacity-90"></i>
+                <span class="text-xs font-black uppercase tracking-wider">Product Photo</span>
+                <span class="text-[9px] opacity-75">Perishable Surplus</span>
+              </div>
+            </div>
+
+            <!-- Description & Price Details -->
+            <div class="sm:col-span-7 space-y-2 text-xs">
+              <div>
+                <h4 class="font-black text-gray-900 text-sm">Description</h4>
+                <p class="text-[11px] text-gray-500 leading-relaxed font-normal mt-1">
+                  Lorem ipsum dolor sit amet, consectetur adipiscing elit. In aliquam dapibus ipsum, a tincidunt sapien viverra ut. Etiam sit amet purus vel tellus ornare aliquam.
+                </p>
+              </div>
+
+              <div class="pt-2 space-y-1 font-semibold text-gray-900 text-xs">
+                <p><strong>Quantity:</strong> <span class="font-normal text-gray-700">50</span></p>
+                <p><strong>Original Price:</strong> <span class="font-normal text-gray-500 line-through">₱250.00</span></p>
+                <p><strong>Discounted Price:</strong> <span class="font-bold text-[#1B4D3E]">₱150.00</span></p>
+                <p><strong>Listing Date:</strong> <span class="font-normal text-gray-700">2026-04-03</span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Merchant Quick Info Card -->
+          <div class="bg-[#8BC3A3] p-3 rounded-2xl flex justify-between items-center shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-white/70 flex items-center justify-center text-[#1B4D3E]">
+                <i data-lucide="store" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h5 id="foodModalMerchant" class="font-black text-[#1B4D3E] text-xs leading-tight">Nena’s Bakeshop</h5>
+                <p class="text-[10px] text-gray-800 font-medium">Purok Butterfly, Pusok, Lapu-Lapu City, Cebu</p>
+              </div>
+            </div>
+            <a href="/users/" class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#1B4D3E] hover:scale-110 shadow-sm transition-all" title="View Merchant">
+              <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </a>
+          </div>
+
+          <!-- TTT Safety Window Countdown -->
+          <div class="flex items-center gap-4 pt-1">
+            <div class="w-24 h-24 rounded-full bg-[#D2E7DD] border-2 border-emerald-200 flex flex-col items-center justify-center shrink-0 shadow-sm text-center p-1">
+              <span class="text-sm font-black text-rose-600 tracking-tight">12:53:47</span>
+              <span class="text-[8px] font-black text-emerald-900 uppercase leading-none mt-0.5">Edible Before</span>
+              <span class="text-[7px] text-gray-600 font-bold leading-tight">(Time to Expiry)</span>
+            </div>
+
+            <div class="text-xs space-y-1">
+              <h5 class="font-black text-gray-900 text-xs">12 hours, 53 minutes, 47 seconds left</h5>
+              <p class="text-[11px] text-gray-500 leading-snug">Best estimated for Edibility. Consume quickly.</p>
+              <p class="text-[11px] text-gray-500 font-medium">Estimated edibility until: <strong>04/04/2026 10:00</strong></p>
+            </div>
+          </div>
+
+          <!-- Action Buttons Inside Modal -->
+          <div class="pt-2 flex justify-center items-center gap-3">
+            <button id="modalFlagBtn" onclick="flagFoodListing(window.currentViewingListingId)" class="bg-[#F6C6BA] hover:bg-[#ebaba0] text-gray-900 font-bold text-xs px-6 py-2.5 rounded-xl border border-gray-300 shadow-sm transition-all">
+              Flag Food
+            </button>
+            <button onclick="removeFoodListingById(window.currentViewingListingId)" class="bg-[#F6C6BA] hover:bg-[#ebaba0] text-gray-900 font-bold text-xs px-6 py-2.5 rounded-xl border border-gray-300 shadow-sm transition-all">
+              Remove Listing
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+    });
+  </script>
+  <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>
