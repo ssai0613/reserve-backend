@@ -2,6 +2,8 @@
 from django.contrib import admin
 from django.urls import path, include
 from accounts import views as custom_admin_views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     # Default Django Admin (Moved slightly so it doesn't conflict with your custom dashboard)
@@ -19,3 +21,6 @@ urlpatterns = [
     path('payouts/', custom_admin_views.admin_payouts, name='custom-payouts'),
     path('announcements/', custom_admin_views.admin_announcements, name='custom-announcements'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

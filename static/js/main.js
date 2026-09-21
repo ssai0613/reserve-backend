@@ -474,23 +474,89 @@ window.toggleSelectAll = function(masterCheckbox) {
   checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
 };
 
-window.approveMerchantKYB = function(accountId) {
-  alert(`Account ${accountId} APPROVED! Legal documents verified.`);
-  const activeBadge = document.querySelector('#table-merchant tr span') || document.querySelector('#table-foodbank tr span');
-  if (activeBadge) {
-    activeBadge.className = "bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold";
-    activeBadge.textContent = "Active";
+// --- Helper: Grab Django's CSRF Security Token ---
+function getCSRFToken() {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, 10) === ('csrftoken=')) {
+                cookieValue = decodeURIComponent(cookie.substring(10));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// --- Real Approval Logic ---
+window.approveMerchantKYB = async function(accountId) {
+  if (!confirm(`Are you sure you want to approve merchant ID ${accountId}?`)) return;
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCSRFToken() // Required by Django
+      },
+      body: JSON.stringify({ action: 'approve' })
+    });
+
+    if (response.ok) {
+      alert(`Account ${accountId} APPROVED! Legal documents verified.`);
+      
+      // Update the UI dynamically without reloading the page
+      const activeBadge = document.querySelector('#table-merchant tr span');
+      if (activeBadge) {
+        activeBadge.className = "bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold";
+        activeBadge.textContent = "Active";
+      }
+      
+      window.closeModal('merchantEditModal');
+    } else {
+      const errData = await response.json();
+      alert(`Approval Failed: ${errData.error || 'Server error'}`);
+    }
+  } catch (error) {
+    console.error("Approval error:", error);
+    alert("Network error occurred while trying to approve.");
   }
-  window.closeModal('merchantEditModal');
-  window.closeModal('foodBankEditModal');
 };
 
-window.rejectMerchantKYB = function(accountId) {
+// --- Real Rejection Logic ---
+window.rejectMerchantKYB = async function(accountId) {
   const reason = prompt("Enter rejection reason:", "Incomplete legal document submission");
-  if (reason) {
-    alert(`Account ${accountId} REJECTED.`);
-    window.closeModal('merchantEditModal');
-    window.closeModal('foodBankEditModal');
+  if (!reason) return; // User cancelled
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCSRFToken()
+      },
+      body: JSON.stringify({ action: 'reject' })
+    });
+
+    if (response.ok) {
+      alert(`Account ${accountId} REJECTED.`);
+      
+      const activeBadge = document.querySelector('#table-merchant tr span');
+      if (activeBadge) {
+        activeBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold";
+        activeBadge.textContent = "Rejected";
+      }
+      
+      window.closeModal('merchantEditModal');
+    } else {
+      const errData = await response.json();
+      alert(`Rejection Failed: ${errData.error || 'Server error'}`);
+    }
+  } catch (error) {
+    console.error("Rejection error:", error);
+    alert("Network error occurred while trying to reject.");
   }
 };
 
@@ -635,3 +701,69 @@ function initDashboardCharts() {
     });
   }
 }
+
+// --- Modal Routers ---
+window.openPendingModal = function(merchantId, businessName) {
+  document.getElementById('pendingModalTitle').textContent = businessName;
+  document.getElementById('pendingBusName').textContent = businessName;
+  document.getElementById('pendingMerchantId').value = merchantId;
+  
+  window.openModal('merchantPendingModal');
+  if (window.lucide) window.lucide.createIcons();
+};
+
+window.openActiveModal = function(merchantId, businessName) {
+  document.getElementById('activeModalTitle').textContent = businessName;
+  
+  window.openModal('merchantActiveModal');
+  if (window.lucide) window.lucide.createIcons();
+};
+
+// --- Execution Functions ---
+window.executeApprove = async function() {
+  const accountId = document.getElementById('pendingMerchantId').value;
+  if (!confirm(`Approve registration for Merchant ID ${accountId}?`)) return;
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ action: 'approve' })
+    });
+
+    if (response.ok) {
+      alert("Merchant successfully approved!");
+      window.location.reload(); // Refresh to see the new active status in the table
+    }
+  } catch (error) {
+    alert("Network error occurred.");
+  }
+};
+
+window.executeReject = async function() {
+  const accountId = document.getElementById('pendingMerchantId').value;
+  const reasonSelect = document.getElementById('rejectReasonSelect');
+  const reason = reasonSelect.value;
+  
+  if (!reason) {
+    alert("Please select a specific reason for rejection from the dropdown menu.");
+    return;
+  }
+
+  if (!confirm(`Reject Merchant ID ${accountId} for: ${reason}?`)) return;
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ action: 'reject', reason: reason })
+    });
+
+    if (response.ok) {
+      alert("Merchant registration rejected.");
+      window.location.reload(); // Refresh to see the status update
+    }
+  } catch (error) {
+    alert("Network error occurred.");
+  }
+};

@@ -29,11 +29,17 @@ class UserRegistrationView(APIView):
             # Automatically create a related profile based on the user_role
             role = user.user_role.lower()
             if role == 'consumer':
-                # Create a blank consumer profile attached to this new user
-                Consumer.objects.create(user=user, cons_fullname="New Consumer")
+                # Dynamically pull the name and phone from the React Native payload
+                full_name = request.data.get('full_name', 'Unknown User')
+                phone = request.data.get('phone_number', '')
+                
+                Consumer.objects.create(
+                    user=user, 
+                    cons_fullname=full_name,
+                    phone_num=phone
+                )
             
-            # Merchants and Food Banks require KYB document uploads in a separate step
-            
+            # THE MISSING SUCCESS RESPONSE:
             return Response({
                 "message": "Account created successfully", 
                 "user_id": user.user_id,
