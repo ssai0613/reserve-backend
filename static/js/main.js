@@ -7,39 +7,81 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  initDashboardCharts();
+  if (document.getElementById('userGrowthChart')) {
+    initDashboardCharts();
+  }
+  
+  initAdminLogin();
   setupGlobalListeners();
   initCalendarPickers();
+  updateRoleStats('Consumer'); // Ensure stats load correctly on init
 });
 
-// Re-scans the DOM for dynamic Lucide icons
-function updateTable() {
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
+// =========================================================
+// ADMIN AUTHENTICATION
+// =========================================================
+function initAdminLogin() {
+  const loginForm = document.getElementById('loginForm');
+  if (!loginForm) return;
+
+  loginForm.addEventListener('submit', async function(e) {
+    e.preventDefault(); 
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('pw').value;
+    const errorEl = document.getElementById('formError');
+    const submitBtn = loginForm.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+
+    errorEl.classList.add('hidden');
+    submitBtn.innerHTML = 'Authenticating...';
+
+    try {
+      const response = await fetch('/api/accounts/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_email: email, user_pass: password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.role !== 'Admin') {
+          errorEl.textContent = "Unauthorized: Administrator access required.";
+          errorEl.classList.remove('hidden');
+          submitBtn.innerHTML = originalBtnText;
+          return;
+        }
+        localStorage.setItem('admin_access_token', data.access);
+        localStorage.setItem('admin_refresh_token', data.refresh);
+        window.location.href = "/dashboard/";
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        errorEl.textContent = errData.error || "Invalid email or password.";
+        errorEl.classList.remove('hidden');
+        submitBtn.innerHTML = originalBtnText;
+      }
+    } catch (error) {
+      errorEl.textContent = "Network error. Please check your connection.";
+      errorEl.classList.remove('hidden');
+      submitBtn.innerHTML = originalBtnText;
+    }
+  });
 }
 
-// ================= 1. UNIVERSAL MODAL SYSTEM =================
+// =========================================================
+// UNIVERSAL MODAL SYSTEM
+// =========================================================
 window.openModal = function(modalId) {
   const modal = document.getElementById(modalId);
-  if (!modal) {
-    console.warn(`Modal element with ID "${modalId}" not found.`);
-    return;
-  }
-
+  if (!modal) return;
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   document.body.classList.add('overflow-hidden');
-
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
+  if (window.lucide) window.lucide.createIcons();
 };
 
 window.closeModal = function(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
-
   modal.classList.add('hidden');
   modal.classList.remove('flex');
   document.body.classList.remove('overflow-hidden');
@@ -48,7 +90,6 @@ window.closeModal = function(modalId) {
 window.toggleModal = function(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
-
   if (modal.classList.contains('hidden')) {
     window.openModal(modalId);
   } else {
@@ -56,7 +97,37 @@ window.toggleModal = function(modalId) {
   }
 };
 
-// ================= 2. CALENDAR PICKER INITIALIZATION =================
+function setupGlobalListeners() {
+  window.addEventListener('click', (event) => {
+    if (event.target.classList.contains('modal-overlay')) {
+      event.target.classList.add('hidden');
+      event.target.classList.remove('flex');
+      document.body.classList.remove('overflow-hidden');
+    }
+  });
+
+  const searchInputs = document.querySelectorAll('input[placeholder*="Search"]');
+  searchInputs.forEach(input => {
+    input.addEventListener('input', handleLiveSearch);
+  });
+}
+
+// =========================================================
+// SEARCH, SORT & DATE FILTERING (Using Data Attributes)
+// =========================================================
+function handleLiveSearch(event) {
+  const query = event.target.value.toLowerCase();
+  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
+  if (!visibleTable) return;
+  
+  const rows = visibleTable.querySelectorAll('tbody tr:not(.empty-row)');
+  rows.forEach(row => {
+    // Searches against the hidden data-search attribute we injected into the HTML row
+    const searchData = row.getAttribute('data-search') || row.textContent.toLowerCase();
+    row.style.display = searchData.includes(query) ? '' : 'none';
+  });
+}
+
 function initCalendarPickers() {
   if (window.flatpickr) {
     flatpickr(".date-range-picker", {
@@ -75,28 +146,23 @@ function initCalendarPickers() {
 }
 
 window.filterByCalendarRange = function(startDate, endDate) {
-  const visibleTable = document.querySelector('table:not(.hidden)');
+  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
   if (!visibleTable) return;
-
-  const rows = visibleTable.querySelectorAll('tbody tr');
-  let matchCount = 0;
+  
+  const rows = visibleTable.querySelectorAll('tbody tr:not(.empty-row)');
   endDate.setHours(23, 59, 59);
 
   rows.forEach(row => {
-    const dateText = row.children[3]?.textContent.trim() || row.children[2]?.textContent.trim() || row.children[4]?.textContent.trim();
-    const rowDate = new Date(dateText);
-
-    if (!isNaN(rowDate)) {
+    const dateStr = row.getAttribute('data-date');
+    if (dateStr) {
+      const rowDate = new Date(dateStr);
       if (rowDate >= startDate && rowDate <= endDate) {
         row.style.display = '';
-        matchCount++;
       } else {
         row.style.display = 'none';
       }
     }
   });
-
-  alert(`Date Filter Applied: Found ${matchCount} matching records.`);
 };
 
 window.clearCalendarFilter = function() {
@@ -104,143 +170,63 @@ window.clearCalendarFilter = function() {
   if (pickerInput && pickerInput._flatpickr) {
     pickerInput._flatpickr.clear();
   }
-
-  const visibleTable = document.querySelector('table:not(.hidden)');
+  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
   if (!visibleTable) return;
-
-  const rows = visibleTable.querySelectorAll('tbody tr');
+  
+  const rows = visibleTable.querySelectorAll('tbody tr:not(.empty-row)');
   rows.forEach(row => row.style.display = '');
 };
 
-// ================= 3. SORT BY CRITERIA =================
 window.triggerSortByCriteria = function(selectElement) {
   const criteria = selectElement.value;
-  const visibleTable = document.querySelector('table:not(.hidden)');
+  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
   if (!visibleTable || !criteria) return;
 
   const tbody = visibleTable.querySelector('tbody');
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-
-  let colIndex = criteria.includes('name') || criteria.includes('item') ? 1 : 3;
+  const rows = Array.from(tbody.querySelectorAll('tr:not(.empty-row)'));
   const isAscending = !criteria.includes('desc');
 
   rows.sort((a, b) => {
-    let cellA = a.children[colIndex]?.textContent.trim().toLowerCase() || '';
-    let cellB = b.children[colIndex]?.textContent.trim().toLowerCase() || '';
-
     if (criteria.includes('date')) {
-      const dateA = new Date(cellA);
-      const dateB = new Date(cellB);
-      if (!isNaN(dateA) && !isNaN(dateB)) {
-        return isAscending ? dateA - dateB : dateB - dateA;
-      }
+      const dateA = new Date(a.getAttribute('data-date') || 0);
+      const dateB = new Date(b.getAttribute('data-date') || 0);
+      return isAscending ? dateA - dateB : dateB - dateA;
     }
-
-    return isAscending ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+    if (criteria.includes('status')) {
+      const statA = a.getAttribute('data-status') || '';
+      const statB = b.getAttribute('data-status') || '';
+      return isAscending ? statA.localeCompare(statB) : statB.localeCompare(statA);
+    }
+    if (criteria.includes('tier')) {
+      const tA = parseInt(a.getAttribute('data-tier') || 0);
+      const tB = parseInt(b.getAttribute('data-tier') || 0);
+      return isAscending ? tA - tB : tB - tA;
+    }
+    // Default name sort (Grabbing the 2nd cell containing the Name)
+    const nameA = a.children[1]?.textContent.trim().toLowerCase() || '';
+    const nameB = b.children[1]?.textContent.trim().toLowerCase() || '';
+    return isAscending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
   });
-
+  
   rows.forEach(row => tbody.appendChild(row));
 };
 
-// ================= 4. GLOBAL DROPDOWN & MODAL LISTENERS =================
-function setupGlobalListeners() {
-  window.addEventListener('click', (event) => {
-    // Backdrop click closer
-    if (event.target.classList.contains('modal-overlay') || event.target.classList.contains('modal-backdrop') || event.target.hasAttribute('data-modal-container')) {
-      event.target.classList.add('hidden');
-      event.target.classList.remove('flex');
-      document.body.classList.remove('overflow-hidden');
-    }
-
-    const notifBtn = document.getElementById('notifMenuBtn');
-    const notifDropdown = document.getElementById('notifDropdown');
-    if (notifBtn && notifDropdown && !notifBtn.contains(event.target) && !notifDropdown.contains(event.target)) {
-      notifDropdown.classList.add('hidden');
-    }
-
-    const adminBtn = document.getElementById('adminMenuBtn');
-    const adminDropdown = document.getElementById('adminDropdown');
-    if (adminBtn && adminDropdown && !adminBtn.contains(event.target) && !adminDropdown.contains(event.target)) {
-      adminDropdown.classList.add('hidden');
-    }
-  });
-
-  const searchInputs = document.querySelectorAll('input[placeholder*="Search"]');
-  searchInputs.forEach(input => {
-    input.addEventListener('input', handleLiveSearch);
-  });
-}
-
-window.toggleNotifMenu = function() {
-  const dropdown = document.getElementById('notifDropdown');
-  if (dropdown) {
-    dropdown.classList.toggle('hidden');
-    const badge = document.getElementById('notifBadge');
-    if (badge) badge.classList.add('hidden');
-  }
+window.toggleSelectAll = function(masterCheckbox) {
+  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
+  if (!visibleTable) return;
+  const checkboxes = visibleTable.querySelectorAll('tbody input[type="checkbox"]');
+  checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
 };
 
-window.toggleAdminMenu = function() {
-  const dropdown = document.getElementById('adminDropdown');
-  if (dropdown) dropdown.classList.toggle('hidden');
-};
-
-window.openAdminProfile = function() {
-  const adminDropdown = document.getElementById('adminDropdown');
-  if (adminDropdown) adminDropdown.classList.add('hidden');
-  window.openModal('adminProfileModal');
-};
-
-window.handleLogout = function() {
-
-    if (confirm("Are you sure you want to log out of ReServe Admin Portal?")) {
-
-        alert("Logged out successfully!");
-
-        console.log("BEFORE REDIRECT:", window.location.href);
-
-        window.location.href = "/login/";
-
-        console.log("AFTER REDIRECT:", window.location.href);
-    }
-
-};
-
-function togglePw() {
-    const pw = document.getElementById("pw");
-    const eyeIcon = document.getElementById("eyeIcon");
-
-    if (!pw || !eyeIcon) return;
-
-    if (pw.type === "password") {
-        pw.type = "text";
-        eyeIcon.setAttribute("data-lucide", "eye-off");
-    } else {
-        pw.type = "password";
-        eyeIcon.setAttribute("data-lucide", "eye");
-    }
-
-    if (window.lucide) {
-        lucide.createIcons();
-    }
-}
-
-window.toggleMobileNav = function() {
-  const nav = document.getElementById('mainNavbar');
-  if (nav) {
-    nav.classList.toggle('hidden');
-    nav.classList.toggle('flex');
-  }
-};
-
-// ================= 5. USER ROLE TAB SWITCHER & USER HISTORY =================
+// =========================================================
+// TAB SWITCHER AND DYNAMIC STAT CARDS
+// =========================================================
 window.switchRoleTab = function(roleName, element) {
   const tabs = document.querySelectorAll('.role-tab-btn');
   tabs.forEach(tab => {
     tab.classList.remove('bg-white', 'text-[#1B4D3E]', 'shadow-sm', 'border-b-2', 'border-[#1B4D3E]');
     tab.classList.add('text-gray-400', 'hover:text-[#1B4D3E]');
   });
-
   element.classList.remove('text-gray-400', 'hover:text-[#1B4D3E]');
   element.classList.add('bg-white', 'text-[#1B4D3E]', 'shadow-sm', 'border-b-2', 'border-[#1B4D3E]');
 
@@ -251,230 +237,161 @@ window.switchRoleTab = function(roleName, element) {
   const activeTable = document.getElementById(targetId);
   if (activeTable) {
     activeTable.classList.remove('hidden');
+    updateRoleStats(roleName);
   }
 };
 
-window.openUserHistory = function(title, user, roleType) {
-  const titleEl = document.getElementById('historyModalTitle');
-  const userEl = document.getElementById('historyModalUser');
-  const container = document.getElementById('historyListContainer');
+function updateRoleStats(roleName) {
+  const tableId = `table-${roleName.toLowerCase().replace(/\s+/g, '')}`;
+  const table = document.getElementById(tableId);
+  if (!table) return;
 
-  if (titleEl) titleEl.textContent = title;
-  if (userEl) userEl.textContent = user;
+  const rows = table.querySelectorAll('tbody tr:not(.empty-row)');
+  let total = rows.length;
+  let active = 0;
+  let suspendedOrPending = 0;
 
-  let items = [];
-  if (roleType === 'consumer') {
-    items = [
-      'Acquired Produce Listing: Assorted Apples',
-      'Completed Pickup: Carbon Market Outlet',
-      'Added Review: ⭐⭐⭐⭐⭐',
-      'Acquired Produce Listing: Native Tomatoes',
-      'Updated Contact Details'
-    ];
-  } else if (roleType === 'foodbank') {
-    items = [
-      'Received Surplus Allocation: 50kg Squash',
-      'Completed Intake Distribution: 100 Families',
-      'Submitted Distribution Verification Report',
-      'Requested Surplus Match: Fresh Veggie Hubs',
-      'Updated Emergency Contact Protocol'
-    ];
-  } else {
-    items = [
-      'Posted Produce Listing: Fresh Eggplants',
-      'Posted Produce Listing: Cabbage Bundle',
-      'Completed Order Fulfillment: #ORD-982',
-      'Initiated Payout Withdrawal: ₱10,000.00',
-      'Posted Produce Listing: Local Carrots'
-    ];
-  }
-
-  if (container) {
-    container.innerHTML = items.map((item, idx) => `
-      <div class="${idx % 2 === 0 ? 'bg-[#D2E7DD]' : 'bg-white'} px-4 py-2.5 flex items-center gap-6">
-        <span class="w-24 text-gray-700 font-semibold shrink-0">2026-08-20</span>
-        <span class="text-gray-900 font-medium">${item}</span>
-      </div>
-    `).join('');
-  }
-
-  window.openModal('userHistoryModal');
-};
-
-// ================= 6. FOOD LISTING ACTIONS =================
-window.currentViewingListingId = 'FL-101';
-
-window.openFoodDetailModal = function(listingId) {
-  window.currentViewingListingId = listingId;
-  const row = document.getElementById(`row-${listingId}`);
-  if (row) {
-    const itemName = row.querySelector('td:nth-child(2) span')?.textContent || 'Produce Item';
-    const merchantName = row.querySelector('td:nth-child(3)')?.textContent || 'Merchant';
-    
-    const titleEl = document.getElementById('foodModalTitle');
-    const merchantEl = document.getElementById('foodModalMerchant');
-    if (titleEl) titleEl.textContent = itemName;
-    if (merchantEl) merchantEl.textContent = merchantName;
-  }
-  window.openModal('foodModal');
-};
-
-window.flagFoodListing = function(listingId) {
-  const targetId = listingId || window.currentViewingListingId;
-  const row = document.getElementById(`row-${targetId}`);
-  
-  if (row) {
-    const flagIcon = row.querySelector('.listing-flag-icon');
-    if (flagIcon) {
-      flagIcon.classList.remove('text-gray-300');
-      flagIcon.classList.add('text-amber-500', 'fill-amber-500');
-    }
-
-    const statusCell = row.querySelector('.status-cell');
-    if (statusCell) {
-      statusCell.innerHTML = `<span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Flagged</span>`;
-    }
-  }
-
-  window.closeModal('foodModal');
-};
-
-window.removeFoodListing = function(btn) {
-  if (confirm("Forcibly remove this listing from consumer discovery feeds?")) {
-    const row = btn.closest('tr');
-    if (row) row.remove();
-    alert("Listing removed successfully!");
-  }
-};
-
-window.removeFoodListingById = function(listingId) {
-  const targetId = listingId || window.currentViewingListingId;
-  if (confirm(`Forcibly remove listing ${targetId} from consumer discovery feeds?`)) {
-    const row = document.getElementById(`row-${targetId}`);
-    if (row) row.remove();
-    window.closeModal('foodModal');
-    alert("Listing removed successfully!");
-  }
-};
-
-// ================= 7. DONATION HUB WORKFLOWS =================
-window.openDonationPostingModal = function(hub, items, vol, date, beneficiaries, addr, rowId) {
-  const titleEl = document.getElementById('modalPostingHubTitle');
-  const typeEl = document.getElementById('modalProduceType');
-  const volEl = document.getElementById('modalIntakeVol');
-  const benEl = document.getElementById('modalBeneficiaries');
-  const addrEl = document.getElementById('modalHubAddr');
-  const dateEl = document.getElementById('modalSubDate');
-
-  if (titleEl) titleEl.textContent = hub;
-  if (typeEl) typeEl.textContent = items;
-  if (volEl) volEl.textContent = vol;
-  if (benEl) benEl.textContent = beneficiaries;
-  if (addrEl) addrEl.textContent = addr;
-  if (dateEl) dateEl.textContent = date;
-
-  const approveBtn = document.getElementById('modalApproveReqBtn');
-  if (approveBtn) {
-    approveBtn.onclick = function() {
-      approveDonationRequest(rowId, hub);
-      window.closeModal('donationPostingModal');
-    };
-  }
-
-  window.openModal('donationPostingModal');
-};
-
-window.approveDonationRequest = function(rowId, hubName) {
-  const row = document.getElementById(rowId);
-  if (row) {
-    const statusCell = row.querySelector('.status-cell');
-    if (statusCell) {
-      statusCell.innerHTML = `<span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Approved</span>`;
-    }
-  }
-  alert(`Intake request for "${hubName}" has been APPROVED and added to the dispatch queue.`);
-};
-
-window.rejectDonationRequest = function(rowId, hubName) {
-  const reason = prompt(`Enter rejection reason for "${hubName}":`, "Capacity full or non-matching produce");
-  if (reason) {
-    const row = document.getElementById(rowId);
-    if (row) row.remove();
-    alert(`Intake request for "${hubName}" has been removed.`);
-  }
-};
-
-window.openDonationTransactionModal = function(txId, merchant, hub, items, date, courier, status) {
-  const idEl = document.getElementById('modalTxId');
-  const merchantEl = document.getElementById('modalTxMerchant');
-  const hubEl = document.getElementById('modalTxHub');
-  const itemsEl = document.getElementById('modalTxItems');
-  const dateEl = document.getElementById('modalTxDate');
-  const courierEl = document.getElementById('modalTxCourier');
-  const statusEl = document.getElementById('modalTxStatus');
-
-  if (idEl) idEl.textContent = txId;
-  if (merchantEl) merchantEl.textContent = merchant;
-  if (hubEl) hubEl.textContent = hub;
-  if (itemsEl) itemsEl.textContent = items;
-  if (dateEl) dateEl.textContent = date;
-  if (courierEl) courierEl.textContent = courier;
-  if (statusEl) statusEl.textContent = status;
-
-  const deliveredBtn = document.getElementById('modalDeliveredBtn');
-  if (deliveredBtn) {
-    deliveredBtn.onclick = function() {
-      markDonationDelivered(txId);
-      window.closeModal('donationTxModal');
-    };
-  }
-
-  window.openModal('donationTxModal');
-};
-
-window.markDonationDelivered = function(txId) {
-  const row = document.getElementById(`tx-row-${txId}`);
-  if (row) {
-    const statusCell = row.querySelector('.tx-status-cell');
-    if (statusCell) {
-      statusCell.innerHTML = `<span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Delivered</span>`;
-    }
-  }
-  alert(`Transaction ${txId} confirmed: Surplus received and logged.`);
-};
-
-window.flagDonationTransaction = function(txId) {
-  const row = document.getElementById(`tx-row-${txId}`);
-  if (row) {
-    const statusCell = row.querySelector('.tx-status-cell');
-    if (statusCell) {
-      statusCell.innerHTML = `<span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Flagged (Delay/Issue)</span>`;
-    }
-  }
-  alert(`Transaction ${txId} FLAGGED for logistics investigation.`);
-};
-
-// ================= 8. LIVE SEARCH, USER APPROVALS & PAYOUTS =================
-function handleLiveSearch(event) {
-  const query = event.target.value.toLowerCase();
-  const visibleTable = document.querySelector('table:not(.hidden)');
-  if (!visibleTable) return;
-
-  const rows = visibleTable.querySelectorAll('tbody tr');
   rows.forEach(row => {
-    row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
+    const status = row.getAttribute('data-status') || '';
+    if (status.includes('active')) {
+      active++;
+    } else if (status.includes('pending') || status.includes('suspended') || status.includes('rejected') || status.includes('flagged')) {
+      suspendedOrPending++;
+    }
   });
+
+  const statCards = document.querySelectorAll('main .grid-cols-1.sm\\:grid-cols-3 > div');
+  if (statCards.length >= 3) {
+    statCards[0].querySelector('h3').textContent = total;
+    statCards[1].querySelector('h3').textContent = active;
+    statCards[2].querySelector('h3').textContent = suspendedOrPending;
+    
+    statCards[0].querySelector('p').textContent = `Total ${roleName}s`;
+    statCards[1].querySelector('p').textContent = `Active ${roleName}s`;
+    statCards[2].querySelector('p').textContent = `Pending / Flagged`;
+  }
 }
 
-window.toggleSelectAll = function(masterCheckbox) {
-  const visibleTable = document.querySelector('table:not(.hidden)');
-  if (!visibleTable) return;
+// =========================================================
+// DYNAMIC MODAL INJECTION & OCR
+// =========================================================
+window.openConsumerModal = function(btn) {
+  document.getElementById('consViewName').textContent = btn.dataset.name;
+  document.getElementById('consViewId').textContent = btn.dataset.id;
+  document.getElementById('consViewEmail').textContent = btn.dataset.email;
+  document.getElementById('consViewPhone').textContent = btn.dataset.phone;
+  document.getElementById('consViewDate').textContent = btn.dataset.date;
+  
+  if(btn.dataset.name) {
+    document.getElementById('consInitials').textContent = btn.dataset.name.charAt(0).toUpperCase();
+  }
 
-  const checkboxes = visibleTable.querySelectorAll('tbody input[type="checkbox"]');
-  checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+  window.openModal('consumerViewModal');
 };
 
-// --- Helper: Grab Django's CSRF Security Token ---
+window.openPendingModal = function(btn) {
+  document.getElementById('pendingModalTitle').textContent = btn.dataset.name;
+  document.getElementById('pendingBusName').textContent = btn.dataset.name;
+  document.getElementById('pendingMerchantId').value = btn.dataset.id;
+  
+  const typeEl = document.getElementById('pendingMerchType');
+  if (typeEl) typeEl.textContent = btn.dataset.type || 'Unknown';
+  
+  const emailEl = document.getElementById('pendingEmail');
+  if (emailEl) emailEl.textContent = btn.dataset.email || 'N/A';
+  
+  // OCR Target Injection
+  const ocrName = document.getElementById('ocrDetectName');
+  if (ocrName) ocrName.textContent = btn.dataset.name; 
+  
+  const ocrDate = document.getElementById('ocrDetectDate');
+  if (ocrDate) ocrDate.textContent = btn.dataset.expiry || 'Unknown';
+  
+  // Wire up the File Viewer Button
+  const fileBtn = document.getElementById('pendingPermitBtn');
+  if (fileBtn) {
+    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
+  }
+
+  // Generate dynamic fake confidence score between 92-98%
+  const confidenceScore = (92 + Math.random() * 6).toFixed(1);
+  const confidenceEl = document.getElementById('ocrConfidenceScore');
+  if (confidenceEl) confidenceEl.textContent = `Confidence Score: ${confidenceScore}%`;
+
+  window.openModal('merchantPendingModal');
+};
+
+window.openActiveModal = function(btn) {
+  document.getElementById('activeModalTitle').textContent = btn.dataset.name;
+  
+  const typeEl = document.getElementById('activeMerchType');
+  if (typeEl) typeEl.textContent = btn.dataset.type || 'N/A';
+
+  const emailEl = document.getElementById('activeBusEmail');
+  if (emailEl) emailEl.textContent = btn.dataset.email || 'N/A';
+  
+  const dateEl = document.getElementById('activeBusDate');
+  const activeStatusDate = document.getElementById('activeStatusDate');
+  if (dateEl) dateEl.textContent = btn.dataset.date || 'N/A';
+  if (activeStatusDate) activeStatusDate.textContent = btn.dataset.date || 'N/A';
+  
+  // Dynamic Badge Status check (just in case they open a Suspended one)
+  const statusBadge = document.getElementById('activeStatusBadge');
+  const statusWrapper = document.getElementById('activeStatusWrapper');
+  const userStatus = btn.dataset.status.toLowerCase();
+
+  if (userStatus === 'active') {
+    statusBadge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> VERIFIED`;
+    statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
+    statusWrapper.className = "bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
+  } else {
+    statusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ${userStatus}`;
+    statusBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
+    statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
+  }
+
+  // Wire up the File Viewer Button
+  const fileBtn = document.getElementById('activePermitBtn');
+  if (fileBtn) {
+    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
+  }
+
+  window.openModal('merchantActiveModal');
+};
+
+window.openFoodBankModal = function(btn) {
+  document.getElementById('fbViewName').textContent = btn.dataset.name;
+  
+  const emailEl = document.getElementById('fbViewEmail');
+  if (emailEl) emailEl.textContent = btn.dataset.email || 'N/A';
+  
+  const dateEl = document.getElementById('fbViewDate');
+  if (dateEl) dateEl.textContent = btn.dataset.date || 'N/A';
+
+  // Dynamic Badge Update
+  const statusBadge = document.getElementById('fbStatusBadge');
+  const userStatus = btn.dataset.status.toLowerCase();
+  
+  if (userStatus === 'active') {
+    statusBadge.textContent = "VERIFIED NGO";
+    statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
+  } else {
+    statusBadge.textContent = "PENDING REVIEW";
+    statusBadge.className = "bg-amber-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
+  }
+
+  // Wire up the File Viewer Button
+  const fileBtn = document.getElementById('fbPermitBtn');
+  if (fileBtn) {
+    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
+  }
+
+  window.openModal('foodBankViewModal');
+};
+
+// =========================================================
+// BACKEND API APPROVAL SYSTEM
+// =========================================================
 function getCSRFToken() {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -490,239 +407,66 @@ function getCSRFToken() {
     return cookieValue;
 }
 
-// --- Real Approval Logic ---
-window.approveMerchantKYB = async function(accountId) {
-  if (!confirm(`Are you sure you want to approve merchant ID ${accountId}?`)) return;
-
-  try {
-    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCSRFToken() // Required by Django
-      },
-      body: JSON.stringify({ action: 'approve' })
-    });
-
-    if (response.ok) {
-      alert(`Account ${accountId} APPROVED! Legal documents verified.`);
-      
-      // Update the UI dynamically without reloading the page
-      const activeBadge = document.querySelector('#table-merchant tr span');
-      if (activeBadge) {
-        activeBadge.className = "bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold";
-        activeBadge.textContent = "Active";
-      }
-      
-      window.closeModal('merchantEditModal');
+window.themeAlert = function(title, message, isSuccess = true) {
+  return new Promise((resolve) => {
+    document.getElementById('themeAlertTitle').textContent = title;
+    document.getElementById('themeAlertMessage').textContent = message;
+    
+    const iconWrap = document.getElementById('themeAlertIconWrap');
+    const icon = document.getElementById('themeAlertIcon');
+    
+    if (isSuccess) {
+      iconWrap.className = "mx-auto w-14 h-14 rounded-full bg-[#E7F1EC] text-[#3A826D] flex items-center justify-center mb-3";
+      icon.setAttribute('data-lucide', 'check-circle');
     } else {
-      const errData = await response.json();
-      alert(`Approval Failed: ${errData.error || 'Server error'}`);
+      iconWrap.className = "mx-auto w-14 h-14 rounded-full bg-rose-100 text-rose-500 flex items-center justify-center mb-3";
+      icon.setAttribute('data-lucide', 'alert-triangle');
     }
-  } catch (error) {
-    console.error("Approval error:", error);
-    alert("Network error occurred while trying to approve.");
-  }
-};
-
-// --- Real Rejection Logic ---
-window.rejectMerchantKYB = async function(accountId) {
-  const reason = prompt("Enter rejection reason:", "Incomplete legal document submission");
-  if (!reason) return; // User cancelled
-
-  try {
-    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCSRFToken()
-      },
-      body: JSON.stringify({ action: 'reject' })
-    });
-
-    if (response.ok) {
-      alert(`Account ${accountId} REJECTED.`);
-      
-      const activeBadge = document.querySelector('#table-merchant tr span');
-      if (activeBadge) {
-        activeBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold";
-        activeBadge.textContent = "Rejected";
-      }
-      
-      window.closeModal('merchantEditModal');
-    } else {
-      const errData = await response.json();
-      alert(`Rejection Failed: ${errData.error || 'Server error'}`);
-    }
-  } catch (error) {
-    console.error("Rejection error:", error);
-    alert("Network error occurred while trying to reject.");
-  }
-};
-
-window.approvePayout = function(btn, requestId) {
-  if (confirm(`Approve GCash payout transfer for ${requestId}?`)) {
-    const row = btn.closest('tr');
-    if (row) {
-      const statusCell = row.querySelector('td:nth-child(6) span');
-      if (statusCell) {
-        statusCell.className = "bg-emerald-500 text-white px-3 py-1 rounded-full font-bold";
-        statusCell.textContent = "Successful";
-      }
-    }
-    alert(`Payout ${requestId} approved! Digital ledger updated.`);
-  }
-};
-
-window.rejectPayout = function(btn, requestId) {
-  if (confirm(`Reject payout request ${requestId}?`)) {
-    const row = btn.closest('tr');
-    if (row) {
-      const statusCell = row.querySelector('td:nth-child(6) span');
-      if (statusCell) {
-        statusCell.className = "bg-rose-500 text-white px-3 py-1 rounded-full font-bold";
-        statusCell.textContent = "Rejected";
-      }
-    }
-  }
-};
-
-window.deleteDonationRow = function(btnElement, hubName) {
-  if (confirm(`Are you sure you want to delete the record for "${hubName}"?`)) {
-    const row = btnElement.closest('tr');
-    if (row) {
-      row.remove();
-      alert(`Record for "${hubName}" deleted.`);
-    }
-  }
-};
-
-window.handleAnnouncementSubmit = function(event) {
-  event.preventDefault();
-  const audience = document.getElementById('announcementAudience')?.value;
-  const title = document.getElementById('announcementTitle')?.value;
-  const body = document.getElementById('announcementBody')?.value;
-
-  if (!title || !body) {
-    alert('Please fill out all fields.');
-    return;
-  }
-
-  const historyContainer = document.getElementById('announcementHistoryList');
-  if (historyContainer) {
-    const newCard = document.createElement('div');
-    newCard.className = 'border border-gray-100 p-4 rounded-2xl bg-white flex justify-between items-start shadow-sm hover:shadow-md transition-all';
-    newCard.innerHTML = `
-      <div>
-        <span class="text-[10px] font-black tracking-wider uppercase bg-[#8BC3A3]/30 text-[#1B4D3E] px-3 py-1 rounded-full border border-[#8BC3A3]/40">${audience}</span>
-        <h5 class="font-bold text-sm text-gray-800 mt-2">${title}</h5>
-        <p class="text-xs text-gray-500 mt-1 leading-relaxed">${body}</p>
-        <p class="text-[10px] text-gray-400 font-medium mt-2">Posted on: ${new Date().toLocaleString()}</p>
-      </div>
-      <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-red-500 p-1">
-        <i data-lucide="trash-2" class="w-4 h-4"></i>
-      </button>
-    `;
-    historyContainer.prepend(newCard);
     if (window.lucide) window.lucide.createIcons();
-  }
 
-  document.getElementById('announcementTitle').value = '';
-  document.getElementById('announcementBody').value = '';
-  alert('Announcement broadcasted system-wide!');
+    const modal = document.getElementById('themeAlertModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    document.getElementById('themeAlertBtn').onclick = () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      resolve();
+    };
+  });
 };
 
-// ================= 9. CHART.JS INITIALIZATION =================
-function initDashboardCharts() {
-  const mainCtx = document.getElementById('userGrowthChart')?.getContext('2d');
-  if (mainCtx) {
-    new Chart(mainCtx, {
-      type: 'line',
-      data: {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-        datasets: [
-          {
-            label: 'Surplus Rescued (kg)',
-            data: [2500, 3800, 3200, 5100, 4800, 7200, 6800, 9400],
-            borderColor: '#3A826D',
-            backgroundColor: 'rgba(58, 130, 109, 0.12)',
-            fill: true,
-            tension: 0.42,
-            borderWidth: 3,
-            pointBackgroundColor: '#1B4D3E',
-            pointRadius: 3
-          },
-          {
-            label: 'New Consumers',
-            data: [1200, 1900, 2400, 2900, 3700, 4200, 5800, 6900],
-            borderColor: '#EBB338',
-            backgroundColor: 'rgba(235, 179, 56, 0.08)',
-            fill: true,
-            tension: 0.42,
-            borderWidth: 2.5,
-            borderDash: [5, 5],
-            pointRadius: 0
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top', align: 'end', labels: { boxWidth: 10, font: { size: 11, weight: 'bold' } } }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 } } }
-        }
-      }
-    });
-  }
-
-  const donutCtx = document.getElementById('trafficDonutChart')?.getContext('2d');
-  if (donutCtx) {
-    new Chart(donutCtx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Bakeries', 'Supermarkets', 'Restaurants'],
-        datasets: [{
-          data: [55, 33, 12],
-          backgroundColor: ['#1B4D3E', '#3A826D', '#EBB338'],
-          borderWidth: 0,
-          hoverOffset: 4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '72%',
-        plugins: { legend: { display: false } }
-      }
-    });
-  }
-}
-
-// --- Modal Routers ---
-window.openPendingModal = function(merchantId, businessName) {
-  document.getElementById('pendingModalTitle').textContent = businessName;
-  document.getElementById('pendingBusName').textContent = businessName;
-  document.getElementById('pendingMerchantId').value = merchantId;
-  
-  window.openModal('merchantPendingModal');
-  if (window.lucide) window.lucide.createIcons();
+window.themeConfirm = function(title, message) {
+  return new Promise((resolve) => {
+    document.getElementById('themeConfirmTitle').textContent = title;
+    document.getElementById('themeConfirmMessage').textContent = message;
+    
+    const modal = document.getElementById('themeConfirmModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    document.getElementById('themeConfirmCancel').onclick = () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      resolve(false);
+    };
+    
+    document.getElementById('themeConfirmOk').onclick = () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      resolve(true);
+    };
+  });
 };
 
-window.openActiveModal = function(merchantId, businessName) {
-  document.getElementById('activeModalTitle').textContent = businessName;
-  
-  window.openModal('merchantActiveModal');
-  if (window.lucide) window.lucide.createIcons();
-};
-
-// --- Execution Functions ---
 window.executeApprove = async function() {
   const accountId = document.getElementById('pendingMerchantId').value;
-  if (!confirm(`Approve registration for Merchant ID ${accountId}?`)) return;
+  const isConfirmed = await themeConfirm(
+    "Approve Registration", 
+    `Are you sure you want to officially approve Merchant ID ${accountId} and grant them platform access?`
+  );
+  
+  if (!isConfirmed) return;
 
   try {
     const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
@@ -732,11 +476,13 @@ window.executeApprove = async function() {
     });
 
     if (response.ok) {
-      alert("Merchant successfully approved!");
-      window.location.reload(); // Refresh to see the new active status in the table
+      await themeAlert("Merchant Approved!", `Account ${accountId} is now active and verified.`, true);
+      window.location.reload(); 
+    } else {
+      await themeAlert("Approval Failed", "The server rejected the approval.", false);
     }
   } catch (error) {
-    alert("Network error occurred.");
+    await themeAlert("Network Error", "Could not reach the server. Please check your connection.", false);
   }
 };
 
@@ -746,11 +492,16 @@ window.executeReject = async function() {
   const reason = reasonSelect.value;
   
   if (!reason) {
-    alert("Please select a specific reason for rejection from the dropdown menu.");
+    await themeAlert("Missing Information", "Please select a specific reason for rejection from the dropdown menu before proceeding.", false);
     return;
   }
 
-  if (!confirm(`Reject Merchant ID ${accountId} for: ${reason}?`)) return;
+  const isConfirmed = await themeConfirm(
+    "Reject Profile", 
+    `Are you sure you want to reject Merchant ID ${accountId}? They will be notified that the reason is: "${reason}".`
+  );
+  
+  if (!isConfirmed) return;
 
   try {
     const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
@@ -760,10 +511,12 @@ window.executeReject = async function() {
     });
 
     if (response.ok) {
-      alert("Merchant registration rejected.");
-      window.location.reload(); // Refresh to see the status update
+      await themeAlert("Profile Rejected", "The merchant application has been formally rejected.", true);
+      window.location.reload(); 
+    } else {
+      await themeAlert("Rejection Failed", "The server failed to update the status.", false);
     }
   } catch (error) {
-    alert("Network error occurred.");
+    await themeAlert("Network Error", "Could not reach the server.", false);
   }
 };

@@ -69,6 +69,8 @@ class Merchant(models.Model):
     merch_type = models.CharField(max_length=50)
     bus_permit_path = models.CharField(max_length=255)
     bus_expiry_date = models.DateField()
+    ocr_confidence = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    ocr_extracted_text = models.TextField(blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     status = models.CharField(max_length=50, default='Pending')
     wallet_bal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)

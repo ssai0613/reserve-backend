@@ -185,3 +185,6 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+import os
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\cyrus\Downloads\reserve-ocr-7ddf1443a3dc.json" # Change to your actual file path
