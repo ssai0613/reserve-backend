@@ -18,6 +18,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import render
+import json
+from .utils import extract_cebu_permit_data
 
 class UserRegistrationView(APIView):
     def post(self, request):
@@ -52,7 +54,7 @@ class CustomLoginView(TokenObtainPairView):
     serializer_class = CustomLoginSerializer
 
 class MerchantRegistrationView(APIView):
-    parser_classes = (MultiPartParser, FormParser) # Required to accept image/file uploads
+    parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request):
         serializer = MerchantRegistrationSerializer(data=request.data)
@@ -60,17 +62,16 @@ class MerchantRegistrationView(APIView):
         if serializer.is_valid():
             merchant = serializer.save()
             
-            # Run the REAL OCR extraction on the uploaded permit
-            ocr_results = simulate_ocr_extraction(merchant.bus_permit_path)
+            # Execute the Cebu Anchor-Text OCR Engine
+            ocr_results = extract_cebu_permit_data(merchant.bus_permit_path)
             
-            # --- NEW: SAVE THE AI RESULTS TO SUPABASE ---
-            merchant.ocr_extracted_text = ocr_results['raw_text']
-            merchant.ocr_confidence = ocr_results['confidence_score']
+            # Save structured JSON metadata & confidence score to database
+            merchant.ocr_extracted_text = json.dumps(ocr_results)
+            merchant.ocr_confidence = ocr_results.get('confidence_score', 0.0)
             merchant.save()
             
-            # Create an admin notification for the validation queue
             AdminNotification.objects.create(
-                user_id=1, 
+                user_id=1,
                 admin_notif_type='KYB',
                 message=f"New merchant application: {merchant.bus_name}. OCR Confidence: {ocr_results['confidence_score']}%",
                 merchant=merchant

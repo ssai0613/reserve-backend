@@ -289,37 +289,6 @@ window.openConsumerModal = function(btn) {
   window.openModal('consumerViewModal');
 };
 
-window.openPendingModal = function(btn) {
-  document.getElementById('pendingModalTitle').textContent = btn.dataset.name;
-  document.getElementById('pendingBusName').textContent = btn.dataset.name;
-  document.getElementById('pendingMerchantId').value = btn.dataset.id;
-  
-  const typeEl = document.getElementById('pendingMerchType');
-  if (typeEl) typeEl.textContent = btn.dataset.type || 'Unknown';
-  
-  const emailEl = document.getElementById('pendingEmail');
-  if (emailEl) emailEl.textContent = btn.dataset.email || 'N/A';
-  
-  // OCR Target Injection
-  const ocrName = document.getElementById('ocrDetectName');
-  if (ocrName) ocrName.textContent = btn.dataset.name; 
-  
-  const ocrDate = document.getElementById('ocrDetectDate');
-  if (ocrDate) ocrDate.textContent = btn.dataset.expiry || 'Unknown';
-  
-  // Wire up the File Viewer Button
-  const fileBtn = document.getElementById('pendingPermitBtn');
-  if (fileBtn) {
-    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
-  }
-
-  // Generate dynamic fake confidence score between 92-98%
-  const confidenceScore = (92 + Math.random() * 6).toFixed(1);
-  const confidenceEl = document.getElementById('ocrConfidenceScore');
-  if (confidenceEl) confidenceEl.textContent = `Confidence Score: ${confidenceScore}%`;
-
-  window.openModal('merchantPendingModal');
-};
 
 window.openActiveModal = function(btn) {
   document.getElementById('activeModalTitle').textContent = btn.dataset.name;
