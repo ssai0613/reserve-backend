@@ -1,25 +1,22 @@
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from .serializers import UserRegistrationSerializer, CustomLoginSerializer
-from .models import Consumer, Merchant, User, FoodBank
+import json
+from django.shortcuts import render
 from django.contrib.auth.hashers import check_password
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from .merchant_serializers import MerchantRegistrationSerializer
-from .utils import simulate_ocr_extraction
-from notifications.models import AdminNotification
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import render
-import json
-from .utils import extract_cebu_permit_data
+
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from notifications.models import AdminNotification
+
+from .models import Consumer, Merchant, User, FoodBank
+from .serializers import UserRegistrationSerializer, CustomLoginSerializer
+from .merchant_serializers import MerchantRegistrationSerializer
+from .utils import extract_cebu_permit_data, simulate_ocr_extraction
 
 class UserRegistrationView(APIView):
     def post(self, request):
@@ -28,10 +25,8 @@ class UserRegistrationView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             
-            # Automatically create a related profile based on the user_role
             role = user.user_role.lower()
             if role == 'consumer':
-                # Dynamically pull the name and phone from the React Native payload
                 full_name = request.data.get('full_name', 'Unknown User')
                 phone = request.data.get('phone_number', '')
                 
@@ -41,7 +36,6 @@ class UserRegistrationView(APIView):
                     phone_num=phone
                 )
             
-            # THE MISSING SUCCESS RESPONSE:
             return Response({
                 "message": "Account created successfully", 
                 "user_id": user.user_id,
@@ -65,6 +59,10 @@ class MerchantRegistrationView(APIView):
             # Execute the Cebu Anchor-Text OCR Engine
             ocr_results = extract_cebu_permit_data(merchant.bus_permit_path)
             
+            # --- NEW: Delete massive raw text to prevent HTML corruption ---
+            if 'raw_text' in ocr_results:
+                del ocr_results['raw_text']
+            
             # Save structured JSON metadata & confidence score to database
             merchant.ocr_extracted_text = json.dumps(ocr_results)
             merchant.ocr_confidence = ocr_results.get('confidence_score', 0.0)
@@ -73,7 +71,7 @@ class MerchantRegistrationView(APIView):
             AdminNotification.objects.create(
                 user_id=1,
                 admin_notif_type='KYB',
-                message=f"New merchant application: {merchant.bus_name}. OCR Confidence: {ocr_results['confidence_score']}%",
+                message=f"New merchant application: {merchant.bus_name}. OCR Confidence: {merchant.ocr_confidence}%",
                 merchant=merchant
             )
             
@@ -86,18 +84,14 @@ class MerchantRegistrationView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class AdminMerchantApprovalView(APIView):
-    # permission_classes = [IsAuthenticated]
-
     def get(self, request):
-        # Optional: Verify if the requester is an Admin
         try:
-            user = User.objects.get(user_email=request.user.username) # or request.user depending on auth setup
+            user = User.objects.get(user_email=request.user.username) 
             if user.user_role != 'Admin':
                 return Response({"error": "Unauthorized access"}, status=status.HTTP_403_FORBIDDEN)
         except User.DoesNotExist:
             pass
 
-        # Fetch all merchants whose verification is pending
         pending_merchants = Merchant.objects.filter(status='Pending')
         data = [{
             "merchant_id": m.merch_id,
@@ -111,8 +105,7 @@ class AdminMerchantApprovalView(APIView):
         return Response({"pending_merchants": data}, status=status.HTTP_200_OK)
 
     def patch(self, request, merch_id):
-        # Approve or reject merchant application
-        action = request.data.get('action') # Expected: 'approve' or 'reject'
+        action = request.data.get('action') 
 
         try:
             merchant = Merchant.objects.get(merch_id=merch_id)
@@ -133,26 +126,17 @@ class AdminMerchantApprovalView(APIView):
 
         return Response({"error": "Invalid action parameter. Use 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-
-    
-
-
 # --- CUSTOM ADMIN GUI VIEWS ---
 
 def login(request):
-    # Your login logic here
     return render(request, 'login.html')
 
 def admin_dashboard(request):
-    # Fetch live counts from Supabase
     active_merchants_count = Merchant.objects.filter(status='Active').count()
     pending_merchants_count = Merchant.objects.filter(status='Pending').count()
     total_consumers = Consumer.objects.count()
     total_foodbanks = FoodBank.objects.count()
 
-    # Pass the data to the HTML template
     context = {
         'active_merchants': active_merchants_count,
         'pending_merchants': pending_merchants_count,
@@ -162,7 +146,6 @@ def admin_dashboard(request):
     return render(request, 'admin_dashboard.html', context)
 
 def admin_users(request):
-    # Fetch actual users and order them by newest first
     consumers = Consumer.objects.select_related('user').all().order_by('-user__created_at')
     merchants = Merchant.objects.select_related('user').all().order_by('-user__created_at')
     foodbanks = FoodBank.objects.select_related('user').all().order_by('-user__created_at')
@@ -172,10 +155,9 @@ def admin_users(request):
         'merchants': merchants,
         'foodbanks': foodbanks,
         
-        # Stat cards data
         'total_registered': consumers.count() + merchants.count() + foodbanks.count(),
         'active_accounts': merchants.filter(status='Active').count(),
-        'banned_accounts': merchants.filter(status='Suspended').count(), # Example status
+        'banned_accounts': merchants.filter(status='Suspended').count(), 
     }
     return render(request, 'admin_user_manage.html', context)
 

@@ -185,7 +185,7 @@
                         data-date="{{ merchant.user.created_at|date:'Y-m-d' }}"
                         data-expiry="{{ merchant.bus_expiry_date|date:'Y-m-d' }}"
                         data-permit="/media/{{ merchant.bus_permit_path }}"
-                        data-ocr='{{ merchant.ocr_extracted_text|default:"{}"|safe }}'
+                        data-ocr="{{ merchant.ocr_extracted_text|default:'{}' }}"
                         class="flex items-center gap-1.5 bg-amber-500 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-amber-600 transition-colors shadow-sm">
                   <i data-lucide="scan-eye" class="w-3.5 h-3.5"></i> REVIEW
                 </button>
@@ -542,6 +542,6 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => { lucide.createIcons(); });
   </script>
-  <script src="{% static 'js/main.js' %}?v=2.0"}"></script>
+  <script src="{% static 'js/main.js' %}?v=2.1"></script>
 </body>
 </html>
