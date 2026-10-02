@@ -1,5 +1,5 @@
 /**
- * ReServe Admin Web Portal - Master JS Controller (Unified SaaS Edition)
+ * ReServe Admin Web Portal - Master JS Controller
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,12 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initAdminLogin();
   setupGlobalListeners();
   initCalendarPickers();
-  updateRoleStats('Consumer'); // Ensure stats load correctly on init
+  updateRoleStats('Consumer'); 
 });
 
-// =========================================================
-// ADMIN AUTHENTICATION
-// =========================================================
 function initAdminLogin() {
   const loginForm = document.getElementById('loginForm');
   if (!loginForm) return;
@@ -67,9 +64,6 @@ function initAdminLogin() {
   });
 }
 
-// =========================================================
-// UNIVERSAL MODAL SYSTEM
-// =========================================================
 window.openModal = function(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
@@ -96,37 +90,6 @@ window.toggleModal = function(modalId) {
     window.closeModal(modalId);
   }
 };
-
-function setupGlobalListeners() {
-  window.addEventListener('click', (event) => {
-    if (event.target.classList.contains('modal-overlay')) {
-      event.target.classList.add('hidden');
-      event.target.classList.remove('flex');
-      document.body.classList.remove('overflow-hidden');
-    }
-  });
-
-  const searchInputs = document.querySelectorAll('input[placeholder*="Search"]');
-  searchInputs.forEach(input => {
-    input.addEventListener('input', handleLiveSearch);
-  });
-}
-
-// =========================================================
-// SEARCH, SORT & DATE FILTERING (Using Data Attributes)
-// =========================================================
-function handleLiveSearch(event) {
-  const query = event.target.value.toLowerCase();
-  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
-  if (!visibleTable) return;
-  
-  const rows = visibleTable.querySelectorAll('tbody tr:not(.empty-row)');
-  rows.forEach(row => {
-    // Searches against the hidden data-search attribute we injected into the HTML row
-    const searchData = row.getAttribute('data-search') || row.textContent.toLowerCase();
-    row.style.display = searchData.includes(query) ? '' : 'none';
-  });
-}
 
 function initCalendarPickers() {
   if (window.flatpickr) {
@@ -202,7 +165,8 @@ window.triggerSortByCriteria = function(selectElement) {
       const tB = parseInt(b.getAttribute('data-tier') || 0);
       return isAscending ? tA - tB : tB - tA;
     }
-    // Default name sort (Grabbing the 2nd cell containing the Name)
+    
+    // Default name sort 
     const nameA = a.children[1]?.textContent.trim().toLowerCase() || '';
     const nameB = b.children[1]?.textContent.trim().toLowerCase() || '';
     return isAscending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
@@ -211,6 +175,33 @@ window.triggerSortByCriteria = function(selectElement) {
   rows.forEach(row => tbody.appendChild(row));
 };
 
+function setupGlobalListeners() {
+  window.addEventListener('click', (event) => {
+    if (event.target.classList.contains('modal-overlay')) {
+      event.target.classList.add('hidden');
+      event.target.classList.remove('flex');
+      document.body.classList.remove('overflow-hidden');
+    }
+  });
+
+  const searchInputs = document.querySelectorAll('input[placeholder*="Search"]');
+  searchInputs.forEach(input => {
+    input.addEventListener('input', handleLiveSearch);
+  });
+}
+
+function handleLiveSearch(event) {
+  const query = event.target.value.toLowerCase();
+  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
+  if (!visibleTable) return;
+  
+  const rows = visibleTable.querySelectorAll('tbody tr:not(.empty-row)');
+  rows.forEach(row => {
+    const searchData = row.getAttribute('data-search') || row.textContent.toLowerCase();
+    row.style.display = searchData.includes(query) ? '' : 'none';
+  });
+}
+
 window.toggleSelectAll = function(masterCheckbox) {
   const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
   if (!visibleTable) return;
@@ -218,9 +209,6 @@ window.toggleSelectAll = function(masterCheckbox) {
   checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
 };
 
-// =========================================================
-// TAB SWITCHER AND DYNAMIC STAT CARDS
-// =========================================================
 window.switchRoleTab = function(roleName, element) {
   const tabs = document.querySelectorAll('.role-tab-btn');
   tabs.forEach(tab => {
@@ -289,6 +277,56 @@ window.openConsumerModal = function(btn) {
   window.openModal('consumerViewModal');
 };
 
+window.openPendingModal = function(btn) {
+  const merchantId = btn.dataset.id;
+  const businessName = btn.dataset.name;
+  const merchType = btn.dataset.type || 'Standard';
+  const email = btn.dataset.email || 'N/A';
+  const regDate = btn.dataset.date || 'N/A';
+  const permitUrl = btn.dataset.permit || '';
+
+  document.getElementById('pendingModalTitle').textContent = businessName;
+  document.getElementById('pendingBusName').textContent = businessName;
+  document.getElementById('pendingMerchType').textContent = merchType;
+  document.getElementById('pendingEmail').textContent = email;
+  document.getElementById('pendingDate').textContent = regDate;
+  document.getElementById('pendingMerchantId').value = merchantId;
+
+  const fileBtn = document.getElementById('pendingPermitBtn');
+  if (fileBtn) {
+    fileBtn.onclick = () => window.open(permitUrl, '_blank');
+  }
+
+  let ocrData = {};
+  try {
+    ocrData = JSON.parse(btn.dataset.ocr || '{}');
+  } catch (e) {
+    ocrData = {};
+  }
+
+  document.getElementById('ocrDetectName').textContent = ocrData.business_name || 'Not Detected';
+  document.getElementById('ocrDetectPermitNo').textContent = ocrData.permit_number || 'Not Detected';
+  document.getElementById('ocrDetectLGU').textContent = ocrData.lgu_anchor || 'Unverified';
+  document.getElementById('ocrDetectAddress').textContent = ocrData.business_address || 'Not Detected';
+  document.getElementById('ocrDetectNature').textContent = ocrData.nature_of_business || 'Not Detected';
+  document.getElementById('ocrDetectYear').textContent = ocrData.calendar_year ? `Year ${ocrData.calendar_year}` : 'Not Detected';
+  
+  const repText = [ocrData.representative, ocrData.ownership_type].filter(Boolean).join(' • ');
+  document.getElementById('ocrDetectRep').textContent = repText || ocrData.taxpayer_name || 'Not Detected';
+
+  const confidence = ocrData.confidence_score ? `${ocrData.confidence_score}%` : 'Pending/0.0%';
+  const confidenceEl = document.getElementById('ocrConfidenceScore');
+  if (confidenceEl) {
+    confidenceEl.textContent = `Confidence: ${confidence}`;
+    if (parseFloat(ocrData.confidence_score || 0) >= 85) {
+      confidenceEl.className = "bg-emerald-50 text-emerald-800 font-black text-[10px] px-3 py-1 rounded-full border border-emerald-200";
+    } else {
+      confidenceEl.className = "bg-amber-50 text-amber-800 font-black text-[10px] px-3 py-1 rounded-full border border-amber-200";
+    }
+  }
+
+  window.openModal('merchantPendingModal');
+};
 
 window.openActiveModal = function(btn) {
   document.getElementById('activeModalTitle').textContent = btn.dataset.name;
@@ -304,7 +342,6 @@ window.openActiveModal = function(btn) {
   if (dateEl) dateEl.textContent = btn.dataset.date || 'N/A';
   if (activeStatusDate) activeStatusDate.textContent = btn.dataset.date || 'N/A';
   
-  // Dynamic Badge Status check (just in case they open a Suspended one)
   const statusBadge = document.getElementById('activeStatusBadge');
   const statusWrapper = document.getElementById('activeStatusWrapper');
   const userStatus = btn.dataset.status.toLowerCase();
@@ -319,7 +356,6 @@ window.openActiveModal = function(btn) {
     statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
   }
 
-  // Wire up the File Viewer Button
   const fileBtn = document.getElementById('activePermitBtn');
   if (fileBtn) {
     fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
@@ -337,7 +373,6 @@ window.openFoodBankModal = function(btn) {
   const dateEl = document.getElementById('fbViewDate');
   if (dateEl) dateEl.textContent = btn.dataset.date || 'N/A';
 
-  // Dynamic Badge Update
   const statusBadge = document.getElementById('fbStatusBadge');
   const userStatus = btn.dataset.status.toLowerCase();
   
@@ -349,7 +384,6 @@ window.openFoodBankModal = function(btn) {
     statusBadge.className = "bg-amber-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
   }
 
-  // Wire up the File Viewer Button
   const fileBtn = document.getElementById('fbPermitBtn');
   if (fileBtn) {
     fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
@@ -358,9 +392,6 @@ window.openFoodBankModal = function(btn) {
   window.openModal('foodBankViewModal');
 };
 
-// =========================================================
-// BACKEND API APPROVAL SYSTEM
-// =========================================================
 function getCSRFToken() {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
