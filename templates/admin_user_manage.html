@@ -121,19 +121,27 @@
         </thead>
         <tbody class="divide-y divide-gray-100 font-medium">
           {% for consumer in consumers %}
-          <!-- DATA ATTRIBUTES FOR SEARCH & FILTER -->
-          <tr class="hover:bg-gray-50/80" data-date="{{ consumer.user.created_at|date:'Y-m-d' }}" data-search="CID-{{ consumer.cons_id }} {{ consumer.cons_fullname|lower }} {{ consumer.user.user_email|lower }}" data-status="active">
+          <tr class="hover:bg-gray-50/80" data-date="{{ consumer.user.created_at|date:'Y-m-d' }}" data-search="CID-{{ consumer.cons_id }} {{ consumer.cons_fullname|lower }} {{ consumer.user.user_email|lower }}" data-status="{{ consumer.status|default:'Active'|lower }}">
             <td class="p-3.5 font-bold text-gray-700">CID-{{ consumer.cons_id }}</td>
             <td class="p-3.5 font-bold text-[#1B4D3E]">{{ consumer.cons_fullname }}</td>
             <td class="p-3.5 text-gray-600">{{ consumer.user.user_email }}</td>
             <td class="p-3.5 text-gray-500">{{ consumer.user.created_at|date:"Y-m-d" }}</td>
-            <td class="p-3.5"><span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span></td>
+            <td class="p-3.5">
+              {% if consumer.status == 'Suspended' %}
+                <span class="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Suspended</span>
+              {% else %}
+                <span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span>
+              {% endif %}
+            </td>
             <td class="p-3.5 flex items-center gap-3">
               <button onclick="openConsumerModal(this)"
+                      data-raw-id="{{ consumer.cons_id }}"
                       data-id="CID-{{ consumer.cons_id }}"
                       data-name="{{ consumer.cons_fullname }}"
                       data-email="{{ consumer.user.user_email }}"
                       data-phone="{{ consumer.phone_num|default:'Not Provided' }}"
+                      data-address="{{ consumer.address|default:'Cebu City, Philippines' }}"
+                      data-status="{{ consumer.status|default:'Active' }}"
                       data-date="{{ consumer.user.created_at|date:'Y-m-d' }}"
                       class="flex items-center gap-1.5 bg-[#3A826D] text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-[#2D6A56] transition-colors shadow-sm">
                 <i data-lucide="eye" class="w-3.5 h-3.5"></i> VIEW
@@ -160,7 +168,6 @@
         </thead>
         <tbody class="divide-y divide-gray-100 font-medium">
           {% for merchant in merchants %}
-          <!-- DATA ATTRIBUTES FOR SEARCH & FILTER -->
           <tr class="hover:bg-gray-50/80" data-date="{{ merchant.user.created_at|date:'Y-m-d' }}" data-search="MID-{{ merchant.merch_id }} {{ merchant.bus_name|lower }} {{ merchant.user.user_email|lower }}" data-status="{{ merchant.status|lower }}" data-tier="{{ merchant.plan_id }}">
             <td class="p-3.5 font-bold text-gray-700">MID-{{ merchant.merch_id }}</td>
             <td class="p-3.5 font-bold text-[#1B4D3E]">{{ merchant.bus_name }}</td>
@@ -176,11 +183,15 @@
               {% endif %}
             </td>
             <td class="p-3.5">
-              {% if merchant.status == 'Pending' %}
+              {% if merchant.status == 'Pending' or merchant.status == 'Resubmit Required' %}
                 <button onclick="openPendingModal(this)"
                         data-id="{{ merchant.merch_id }}"
                         data-name="{{ merchant.bus_name }}"
                         data-type="{{ merchant.merch_type }}"
+                        data-address="{{ merchant.address|default:'Not Provided' }}"
+                        data-contact="{{ merchant.contact_person|default:'Not Provided' }}"
+                        data-hotline="{{ merchant.hotline|default:'N/A' }}"
+                        data-phone="{{ merchant.phone|default:'Not Provided' }}"
                         data-email="{{ merchant.user.user_email }}"
                         data-date="{{ merchant.user.created_at|date:'Y-m-d' }}"
                         data-expiry="{{ merchant.bus_expiry_date|date:'Y-m-d' }}"
@@ -194,10 +205,15 @@
                         data-id="{{ merchant.merch_id }}"
                         data-name="{{ merchant.bus_name }}"
                         data-type="{{ merchant.merch_type }}"
+                        data-address="{{ merchant.address|default:'Not Provided' }}"
+                        data-contact="{{ merchant.contact_person|default:'Not Provided' }}"
+                        data-hotline="{{ merchant.hotline|default:'N/A' }}"
+                        data-phone="{{ merchant.phone|default:'Not Provided' }}"
                         data-email="{{ merchant.user.user_email }}"
                         data-date="{{ merchant.user.created_at|date:'Y-m-d' }}"
                         data-expiry="{{ merchant.bus_expiry_date|date:'Y-m-d' }}"
                         data-permit="/media/{{ merchant.bus_permit_path }}"
+                        data-ocr="{{ merchant.ocr_extracted_text|default:'{}' }}"
                         data-status="{{ merchant.status }}"
                         class="flex items-center gap-1.5 bg-[#3A826D] text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-[#2D6A56] transition-colors shadow-sm">
                   <i data-lucide="eye" class="w-3.5 h-3.5"></i> VIEW
@@ -224,29 +240,53 @@
         </thead>
         <tbody class="divide-y divide-gray-100 font-medium">
           {% for foodbank in foodbanks %}
-          <!-- DATA ATTRIBUTES FOR SEARCH & FILTER -->
-          <tr class="hover:bg-gray-50/80" data-date="{{ foodbank.user.created_at|date:'Y-m-d' }}" data-search="FB-{{ foodbank.fb_id }} {{ foodbank.fb_name|lower }} {{ foodbank.user.user_email|lower }}" data-status="{{ foodbank.status|lower }}">
-            <td class="p-3.5 font-bold text-gray-700">FB-{{ foodbank.fb_id }}</td>
-            <td class="p-3.5 font-bold text-[#1B4D3E]">{{ foodbank.fb_name }}</td>
+          <tr class="hover:bg-gray-50/80" data-date="{{ foodbank.user.created_at|date:'Y-m-d' }}" data-search="FB-{{ foodbank.org_id }} {{ foodbank.org_name|lower }} {{ foodbank.user.user_email|lower }}" data-status="{{ foodbank.status|lower }}">
+            <td class="p-3.5 font-bold text-gray-700">FB-{{ foodbank.org_id }}</td>
+            <td class="p-3.5 font-bold text-[#1B4D3E]">{{ foodbank.org_name }}</td>
             <td class="p-3.5 text-gray-500">{{ foodbank.user.created_at|date:"Y-m-d" }}</td>
             <td class="p-3.5">
               {% if foodbank.status == 'Active' %}
                 <span class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Active</span>
+              {% elif foodbank.status == 'Pending' %}
+                <span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">Pending</span>
               {% else %}
-                <span class="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">{{ foodbank.status }}</span>
+                <span class="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">{{ foodbank.status }}</span>
               {% endif %}
             </td>
             <td class="p-3.5 flex items-center gap-3">
-              <button onclick="openFoodBankModal(this)"
-                 data-id="FB-{{ foodbank.fb_id }}"
-                 data-name="{{ foodbank.fb_name }}"
-                 data-email="{{ foodbank.user.user_email }}"
-                 data-date="{{ foodbank.user.created_at|date:'Y-m-d' }}"
-                 data-status="{{ foodbank.status }}"
-                 data-permit="/media/{{ foodbank.accreditation_path }}"
-                 class="flex items-center gap-1.5 bg-[#3A826D] text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-[#2D6A56] transition-colors shadow-sm">
-                <i data-lucide="eye" class="w-3.5 h-3.5"></i> VIEW
-              </button>
+              {% if foodbank.status == 'Pending' or foodbank.status == 'Resubmit Required' %}
+                <button onclick="openFoodBankPendingModal(this)"
+                   data-id="{{ foodbank.org_id }}"
+                   data-name="{{ foodbank.org_name }}"
+                   data-address="{{ foodbank.address|default:'Not Provided' }}"
+                   data-contact="{{ foodbank.contact_person|default:'Not Provided' }}"
+                   data-hotline="{{ foodbank.hotline|default:'N/A' }}"
+                   data-phone="{{ foodbank.phone|default:'Not Provided' }}"
+                   data-email="{{ foodbank.user.user_email }}"
+                   data-date="{{ foodbank.user.created_at|date:'Y-m-d' }}"
+                   data-expiry="{{ foodbank.accreditation_expiry|date:'Y-m-d'|default:'2026-12-31' }}"
+                   data-status="{{ foodbank.status }}"
+                   data-permit="/media/{{ foodbank.accreditation_path }}"
+                   class="flex items-center gap-1.5 bg-amber-500 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-amber-600 transition-colors shadow-sm">
+                  <i data-lucide="scan-eye" class="w-3.5 h-3.5"></i> REVIEW
+                </button>
+              {% else %}
+                <button onclick="openFoodBankModal(this)"
+                   data-id="{{ foodbank.org_id }}"
+                   data-name="{{ foodbank.org_name }}"
+                   data-address="{{ foodbank.address|default:'Not Provided' }}"
+                   data-contact="{{ foodbank.contact_person|default:'Not Provided' }}"
+                   data-hotline="{{ foodbank.hotline|default:'N/A' }}"
+                   data-phone="{{ foodbank.phone|default:'Not Provided' }}"
+                   data-email="{{ foodbank.user.user_email }}"
+                   data-date="{{ foodbank.user.created_at|date:'Y-m-d' }}"
+                   data-expiry="{{ foodbank.accreditation_expiry|date:'Y-m-d'|default:'2026-12-31' }}"
+                   data-status="{{ foodbank.status }}"
+                   data-permit="/media/{{ foodbank.accreditation_path }}"
+                   class="flex items-center gap-1.5 bg-[#3A826D] text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-[#2D6A56] transition-colors shadow-sm">
+                  <i data-lucide="eye" class="w-3.5 h-3.5"></i> VIEW
+                </button>
+              {% endif %}
             </td>
           </tr>
           {% empty %}
@@ -260,9 +300,9 @@
     <!--                               MODALS LAYER                                -->
     <!-- ========================================================================= -->
 
-    <!-- CONSUMER VIEW MODAL -->
+    <!-- 1. CONSUMER VIEW MODAL -->
     <div id="consumerViewModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[760px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
         <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-[#1B4D3E] text-white flex items-center justify-center font-black" id="consInitials">C</div>
@@ -273,21 +313,101 @@
           </div>
           <button onclick="toggleModal('consumerViewModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
         </div>
-        <div class="p-5 space-y-3 text-xs">
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
-            <h4 class="font-black text-[#1B4D3E] text-sm">Consumer Overview</h4>
-            <p><strong>Email:</strong> <span id="consViewEmail">user@email.com</span></p>
-            <p><strong>Phone:</strong> <span id="consViewPhone">+63...</span></p>
-            <p><strong>Joined Date:</strong> <span id="consViewDate">YYYY-MM-DD</span></p>
+
+        <div class="p-6 space-y-4 text-xs">
+          <!-- Customer Details Card -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div class="flex justify-between items-center border-b pb-2.5">
+              <h4 class="font-black text-[#1B4D3E] text-sm flex items-center gap-2">
+                <i data-lucide="user-check" class="w-4 h-4 text-[#3A826D]"></i> Customer Information
+              </h4>
+              <span id="consStatusBadge" class="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase">ACTIVE</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase block">Full Name</span>
+                <p class="font-bold text-gray-800 mt-0.5" id="consViewFullName">...</p>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase block">Email Address</span>
+                <p class="font-bold text-blue-600 mt-0.5" id="consViewEmail">...</p>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase block">Phone Number</span>
+                <p class="font-bold text-gray-800 mt-0.5" id="consViewPhone">...</p>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase block">Date Registered</span>
+                <p class="font-bold text-gray-800 mt-0.5" id="consViewDate">...</p>
+              </div>
+              <div class="col-span-2">
+                <span class="text-[9px] font-bold text-gray-400 uppercase block">Address</span>
+                <p class="font-bold text-gray-800 mt-0.5" id="consViewAddress">...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transaction History Table -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <h4 class="font-black text-[#1B4D3E] text-sm flex items-center gap-2">
+              <i data-lucide="receipt" class="w-4 h-4 text-[#3A826D]"></i> System Transaction History
+            </h4>
+            <div class="overflow-x-auto rounded-2xl border border-gray-100">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-[#1B4D3E] text-white text-[10px] font-bold uppercase">
+                  <tr>
+                    <th class="p-3">Txn ID</th>
+                    <th class="p-3">Food Item</th>
+                    <th class="p-3">Establishment</th>
+                    <th class="p-3">Date</th>
+                    <th class="p-3">Amount</th>
+                    <th class="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 font-medium">
+                  <tr class="hover:bg-gray-50/80">
+                    <td class="p-3 font-bold text-gray-700">TXN-1042</td>
+                    <td class="p-3 font-bold text-[#1B4D3E]">Assorted Pastries Box</td>
+                    <td class="p-3 text-gray-600">Bakeshop Surplus</td>
+                    <td class="p-3 text-gray-500">2026-10-12</td>
+                    <td class="p-3 font-bold text-gray-800">₱85.00</td>
+                    <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">Completed</span></td>
+                  </tr>
+                  <tr class="hover:bg-gray-50/80">
+                    <td class="p-3 font-bold text-gray-700">TXN-0988</td>
+                    <td class="p-3 font-bold text-[#1B4D3E]">Fresh Produce Bundle</td>
+                    <td class="p-3 text-gray-600">Market Vendor</td>
+                    <td class="p-3 text-gray-500">2026-10-04</td>
+                    <td class="p-3 font-bold text-gray-800">₱60.00</td>
+                    <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">Completed</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-        <div class="p-4 bg-white rounded-b-[32px] border-t flex justify-end">
-          <button onclick="toggleModal('consumerViewModal')" class="bg-[#1B4D3E] text-white px-8 py-2 rounded-xl font-bold">Close Panel</button>
+
+        <!-- Consumer Footer: Suspend User + Close -->
+        <div class="p-4 bg-white rounded-b-[32px] border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
+          <div class="flex items-center gap-2 w-full md:w-auto">
+            <select id="consumerSuspendReason" class="text-xs font-bold text-gray-700 p-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none">
+              <option value="">Select suspension reason...</option>
+              <option value="Repeated No-Show / Unclaimed Orders">Repeated No-Show / Unclaimed Orders</option>
+              <option value="Abusive Behavior Towards Merchants">Abusive Behavior Towards Merchants</option>
+              <option value="Fraudulent / Spam Activity">Fraudulent / Spam Activity</option>
+              <option value="Terms of Service Violation">Terms of Service Violation</option>
+            </select>
+            <button onclick="executeConsumerSuspend()" class="bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs px-5 py-2.5 rounded-xl hover:bg-rose-100 transition-colors">
+              SUSPEND USER
+            </button>
+          </div>
+          <button onclick="toggleModal('consumerViewModal')" class="bg-[#1B4D3E] text-white px-8 py-2.5 rounded-xl text-xs font-black">Close Panel</button>
         </div>
+        <input type="hidden" id="activeConsumerRawId">
       </div>
     </div>
 
-    <!-- PENDING MERCHANT REVIEW MODAL -->
+    <!-- 2. PENDING MERCHANT REVIEW MODAL (FIXED LAYOUT + EDITABLE OCR) -->
     <div id="merchantPendingModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
       <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[920px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
         
@@ -311,27 +431,45 @@
         <!-- Verification Grid -->
         <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-5">
           
-          <!-- Left Column: Form Submissions -->
+          <!-- Left Column: All Registration Information (Except Password) -->
           <div class="md:col-span-5 space-y-4">
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 text-xs">
-              <h4 class="font-black text-[#1B4D3E] text-sm flex items-center gap-2">
+              <h4 class="font-black text-[#1B4D3E] text-sm flex items-center gap-2 border-b pb-2.5">
                 <i data-lucide="clipboard-check" class="w-4 h-4 text-[#3A826D]"></i> Registered Information
               </h4>
-              <div>
-                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Establishment Name</label>
-                <div class="bg-gray-50 p-2.5 rounded-xl text-gray-800 font-bold mt-1" id="pendingBusName">Loading...</div>
-              </div>
-              <div>
-                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Business Type</label>
-                <div class="bg-gray-50 p-2.5 rounded-xl text-gray-800 font-bold mt-1" id="pendingMerchType">Loading...</div>
-              </div>
-              <div>
-                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Registered Email</label>
-                <div class="bg-gray-50 p-2.5 rounded-xl text-gray-800 font-bold mt-1" id="pendingEmail">user@email.com</div>
-              </div>
-              <div>
-                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Application Date</label>
-                <div class="bg-gray-50 p-2.5 rounded-xl text-gray-800 font-bold mt-1" id="pendingDate">YYYY-MM-DD</div>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="col-span-2">
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Establishment Name</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingBusName">...</div>
+                </div>
+                <div>
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Business Type</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingMerchType">...</div>
+                </div>
+                <div>
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Application Date</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingDate">...</div>
+                </div>
+                <div class="col-span-2">
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Physical Address</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingAddress">...</div>
+                </div>
+                <div>
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Contact Person</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingContact">...</div>
+                </div>
+                <div>
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Contact Number</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingPhone">...</div>
+                </div>
+                <div>
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Business Hotline</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-gray-800 font-bold mt-0.5" id="pendingHotline">...</div>
+                </div>
+                <div>
+                  <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Registered Email</label>
+                  <div class="bg-gray-50 p-2 rounded-xl text-blue-600 font-bold mt-0.5 break-all" id="pendingEmail">...</div>
+                </div>
               </div>
             </div>
 
@@ -341,24 +479,29 @@
                 <span>KYB Verification Policy</span>
               </div>
               <p class="text-[11px] text-gray-600 font-medium leading-relaxed">
-                Ensure the OCR-extracted entity name and municipal jurisdiction match the registered business details before approving access.
+                Compare the uploaded permit with the AI OCR extracted texts. Click <strong>Manual Edit OCR</strong> to correct any misread characters before approving.
               </p>
             </div>
           </div>
 
-          <!-- Right Column: OCR Analysis -->
+          <!-- Right Column: OCR Analysis & Manual Edit -->
           <div class="md:col-span-7 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-            <div class="flex items-center justify-between border-b pb-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
               <h4 class="font-black text-[#1B4D3E] text-sm flex items-center gap-2">
-                <i data-lucide="cpu" class="w-4 h-4 text-[#3A826D]"></i> Document & OCR Analysis
+                <i data-lucide="cpu" class="w-4 h-4 text-[#3A826D]"></i> Document & AI OCR Analysis
               </h4>
-              <span id="ocrConfidenceScore" class="bg-emerald-50 text-emerald-800 font-black text-[10px] px-3 py-1 rounded-full border border-emerald-200">
-                Confidence: 0.0%
-              </span>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="toggleOcrManualEdit()" id="ocrEditToggleBtn" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-black text-[10px] px-3 py-1 rounded-full flex items-center gap-1 transition-colors">
+                  <i data-lucide="pencil" class="w-3 h-3"></i> Manual Edit OCR
+                </button>
+                <span id="ocrConfidenceScore" class="bg-emerald-50 text-emerald-800 font-black text-[10px] px-3 py-1 rounded-full border border-emerald-200">
+                  Confidence: 0.0%
+                </span>
+              </div>
             </div>
 
             <div class="flex items-start gap-4">
-              <!-- File Thumbnail & Action -->
+              <!-- File Thumbnail & Action (Uses exact w-32 shrink-0 from compiled.css) -->
               <div class="w-32 bg-gray-50 rounded-2xl border border-gray-200 p-3 flex flex-col items-center justify-between shrink-0 text-center">
                 <i data-lucide="file-text" class="w-10 h-10 text-[#3A826D] my-2"></i>
                 <span class="text-[9px] text-gray-500 font-bold break-all mb-2" id="ocrDocName">Permit Document</span>
@@ -367,35 +510,39 @@
                 </button>
               </div>
 
-              <!-- Structured Extracted Anchors -->
-              <div class="flex-1 grid grid-cols-2 gap-3 text-xs">
-                <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+              <!-- Structured Extracted Anchors (Editable Inputs with min-w-0) -->
+              <div class="flex-1 min-w-0 grid grid-cols-2 gap-3 text-xs">
+                <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                   <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Detected Business Entity</span>
-                  <strong class="text-gray-900 text-xs mt-0.5 block leading-tight" id="ocrDetectName">...</strong>
+                  <input type="text" id="ocrDetectName" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-900 font-black text-xs mt-0.5 focus:outline-none" readonly>
                 </div>
-                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                   <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Permit Serial No.</span>
-                  <strong class="text-gray-800 text-[11px] mt-0.5 block" id="ocrDetectPermitNo">...</strong>
+                  <input type="text" id="ocrDetectPermitNo" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-black text-[11px] mt-0.5 focus:outline-none" readonly>
                 </div>
-                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                   <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">LGU Authority</span>
-                  <strong class="text-gray-800 text-[11px] mt-0.5 block" id="ocrDetectLGU">...</strong>
+                  <input type="text" id="ocrDetectLGU" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-black text-[11px] mt-0.5 focus:outline-none" readonly>
                 </div>
-                <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                   <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Registered Address</span>
-                  <span class="text-gray-700 text-[11px] font-semibold mt-0.5 block leading-tight" id="ocrDetectAddress">...</span>
+                  <input type="text" id="ocrDetectAddress" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-700 font-semibold text-[11px] mt-0.5 focus:outline-none" readonly>
                 </div>
-                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                   <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Nature of Business</span>
-                  <span class="text-gray-800 text-[11px] font-semibold mt-0.5 block" id="ocrDetectNature">...</span>
+                  <input type="text" id="ocrDetectNature" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-semibold text-[11px] mt-0.5 focus:outline-none" readonly>
                 </div>
-                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                   <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Calendar Validity</span>
-                  <strong class="text-gray-800 text-[11px] mt-0.5 block" id="ocrDetectYear">...</strong>
+                  <input type="text" id="ocrDetectYear" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-black text-[11px] mt-0.5 focus:outline-none" readonly>
                 </div>
-                <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                  <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Authorized Representative / Owner</span>
-                  <span class="text-gray-800 text-[11px] font-bold mt-0.5 block" id="ocrDetectRep">...</span>
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Authorized Representative</span>
+                  <input type="text" id="ocrDetectRep" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-bold text-[11px] mt-0.5 focus:outline-none" readonly>
+                </div>
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Permit Expiry Date</span>
+                  <input type="date" id="ocrDetectExpiry" class="ocr-editable-input w-full min-w-0 bg-transparent text-[#1B4D3E] font-black text-[11px] mt-0.5 focus:outline-none" readonly>
                 </div>
               </div>
             </div>
@@ -407,16 +554,16 @@
           <div class="flex items-center gap-2 w-full md:w-auto">
             <select id="rejectReasonSelect" class="text-xs font-bold text-gray-700 p-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none">
               <option value="">Select rejection reason...</option>
-              <option value="Blurry Document">Blurry or unreadable document</option>
-              <option value="Expired Permit">Business permit is expired</option>
-              <option value="Name Mismatch">Document name does not match profile</option>
-              <option value="Fraudulent Document">Suspected fraudulent document</option>
+              <option value="Blurry or unreadable document (Please re-upload a clear copy)">Blurry or unreadable document</option>
+              <option value="Business permit is expired (Please upload renewed permit)">Business permit is expired</option>
+              <option value="Document business name does not match registration profile">Name Mismatch</option>
+              <option value="Incomplete or invalid municipal document">Invalid / Incomplete Document</option>
             </select>
-            <button onclick="executeReject()" class="bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs px-5 py-2.5 rounded-xl hover:bg-rose-100 transition-colors">
+            <button onclick="executeReject('Merchant')" class="bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs px-5 py-2.5 rounded-xl hover:bg-rose-100 transition-colors">
               REJECT APPLICATION
             </button>
           </div>
-          <button onclick="executeApprove()" class="bg-[#1B4D3E] text-white font-black text-xs px-8 py-2.5 rounded-xl hover:bg-[#143a2e] transition-colors w-full md:w-auto shadow-sm">
+          <button onclick="executeApprove('Merchant')" class="bg-[#1B4D3E] text-white font-black text-xs px-8 py-2.5 rounded-xl hover:bg-[#143a2e] transition-colors w-full md:w-auto shadow-sm">
             APPROVE REGISTRATION
           </button>
         </div>
@@ -424,31 +571,160 @@
       </div>
     </div>
 
-    <!-- ACTIVE MERCHANT VIEW MODAL -->
+    <!-- 3. ACTIVE MERCHANT VIEW MODAL -->
     <div id="merchantActiveModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[760px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[920px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
         <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
               <i data-lucide="store" class="w-5 h-5"></i>
             </div>
-            <h3 id="activeModalTitle" class="font-black text-[#1B4D3E] text-lg tracking-tight">Merchant Name</h3>
+            <div>
+              <h3 id="activeModalTitle" class="font-black text-[#1B4D3E] text-lg tracking-tight">Merchant Name</h3>
+              <p class="text-[10px] text-[#1B4D3E] font-bold uppercase">Merchant Account Overview</p>
+            </div>
           </div>
           <button onclick="toggleModal('merchantActiveModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
         </div>
-        <div class="p-5 space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
-              <h4 class="font-black text-[#1B4D3E] text-sm">Business Details</h4>
-              <p><strong>Type:</strong> <span id="activeMerchType">Bakeshop</span></p>
-              <p><strong>Contact Email:</strong> <span class="text-blue-600" id="activeBusEmail">user@email.com</span></p>
-              <p><strong>Registration Date:</strong> <span id="activeBusDate">YYYY-MM-DD</span></p>
+
+        <div class="p-6 space-y-4">
+          <!-- Permit Expiry Alert Banner -->
+          <div id="activePermitExpiryAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3 text-amber-800 text-xs">
+              <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0"></i>
+              <div>
+                <p class="font-black uppercase text-[10px] tracking-wider">Business Permit Renewal Alert</p>
+                <p id="activePermitExpiryAlertText" class="text-[11px] font-semibold">This merchant's business permit is expiring soon.</p>
+              </div>
             </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center items-center gap-3">
-              <i data-lucide="folder-check" class="w-8 h-8 text-[#3A826D]"></i>
-              <button id="activePermitBtn" class="bg-[#8BC3A3] hover:bg-[#3A826D] hover:text-white transition-colors text-[#1B4D3E] font-black text-xs px-4 py-2 rounded-xl w-full">View Verified Documents</button>
+            <button onclick="openSendNotificationModal('Merchant', true)" class="bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black uppercase px-4 py-2 rounded-xl shadow-sm transition-colors">
+              Notify to Renew Permit
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+            <!-- Full Registration Details (Except Password) -->
+            <div class="md:col-span-7 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 text-xs">
+              <h4 class="font-black text-[#1B4D3E] text-sm border-b pb-2.5 flex items-center gap-2">
+                <i data-lucide="clipboard-check" class="w-4 h-4 text-[#3A826D]"></i> Registration Details
+              </h4>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Establishment Name</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeBusName">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Business Type</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeMerchType">...</p>
+                </div>
+                <div class="col-span-2">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Physical Address</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeBusAddress">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Contact Person</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeContactPerson">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Contact Person Number</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeContactPhone">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Business Hotline</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeHotline">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Date Registered</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="activeBusDate">...</p>
+                </div>
+                <div class="col-span-2">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Account Email Address</span>
+                  <p class="font-bold text-blue-600 mt-0.5" id="activeBusEmail">...</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Business Permit Info & Quick Actions -->
+            <div class="md:col-span-5 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between gap-3 text-xs">
+              <div class="space-y-2.5">
+                <h4 class="font-black text-[#1B4D3E] text-sm border-b pb-2.5 flex items-center gap-2">
+                  <i data-lucide="folder-check" class="w-4 h-4 text-[#3A826D]"></i> Business Permit Info
+                </h4>
+                <div class="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <p class="flex justify-between">
+                    <span class="text-gray-500 font-bold">Permit No:</span>
+                    <strong class="text-gray-800" id="activePermitNo">Verified</strong>
+                  </p>
+                  <p class="flex justify-between">
+                    <span class="text-gray-500 font-bold">LGU Authority:</span>
+                    <strong class="text-gray-800" id="activePermitLGU">Cebu City</strong>
+                  </p>
+                  <p class="flex justify-between">
+                    <span class="text-gray-500 font-bold">Permit Expiry:</span>
+                    <strong class="text-[#1B4D3E]" id="activePermitExpiry">YYYY-MM-DD</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <button id="activePermitBtn" class="bg-[#8BC3A3] hover:bg-[#3A826D] hover:text-white transition-colors text-[#1B4D3E] font-black text-xs px-4 py-2.5 rounded-xl w-full">
+                  View Verified Permit
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button id="activeVisitProfileBtn" class="bg-[#1B4D3E] hover:bg-[#143a2e] text-white font-black text-[10px] uppercase px-3 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1">
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Visit Profile
+                  </button>
+                  <button onclick="toggleSection('merchantTransactionsSection')" class="bg-[#3A826D] hover:bg-[#2D6A56] text-white font-black text-[10px] uppercase px-3 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1">
+                    <i data-lucide="receipt" class="w-3.5 h-3.5"></i> Transactions
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- Expandable Merchant Transactions Table -->
+          <div id="merchantTransactionsSection" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div class="flex justify-between items-center">
+              <h4 class="font-black text-[#1B4D3E] text-sm flex items-center gap-2">
+                <i data-lucide="arrow-left-right" class="w-4 h-4 text-[#3A826D]"></i> Merchant System Transactions
+              </h4>
+              <button onclick="toggleSection('merchantTransactionsSection')" class="text-[10px] font-black text-gray-400 hover:text-rose-500">HIDE TABLE ✕</button>
+            </div>
+            <div class="overflow-x-auto rounded-2xl border border-gray-100">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-[#1B4D3E] text-white text-[10px] font-bold uppercase">
+                  <tr>
+                    <th class="p-3">Order ID</th>
+                    <th class="p-3">Listing Item</th>
+                    <th class="p-3">Buyer / Recipient</th>
+                    <th class="p-3">Date</th>
+                    <th class="p-3">Amount</th>
+                    <th class="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 font-medium">
+                  <tr class="hover:bg-gray-50/80">
+                    <td class="p-3 font-bold text-gray-700">ORD-3021</td>
+                    <td class="p-3 font-bold text-[#1B4D3E]">Day-Old Bread Assortment</td>
+                    <td class="p-3 text-gray-600">Consumer (CID-1)</td>
+                    <td class="p-3 text-gray-500">2026-10-14</td>
+                    <td class="p-3 font-bold text-gray-800">₱120.00</td>
+                    <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">Picked Up</span></td>
+                  </tr>
+                  <tr class="hover:bg-gray-50/80">
+                    <td class="p-3 font-bold text-gray-700">ORD-2984</td>
+                    <td class="p-3 font-bold text-[#1B4D3E]">Surplus Pastry Pack</td>
+                    <td class="p-3 text-gray-600">Cebu Food Bank</td>
+                    <td class="p-3 text-gray-500">2026-10-10</td>
+                    <td class="p-3 font-bold text-gray-800">Donation</td>
+                    <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">Completed</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Status Footer & Compliance Controls -->
           <div class="pt-2 flex flex-col md:flex-row items-center justify-between gap-3">
             <div id="activeStatusWrapper" class="bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm">
               <span id="activeStatusBadge" class="bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1">
@@ -459,48 +735,293 @@
                 <p class="font-black" id="activeStatusDate">2026-09-21</p>
               </div>
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full md:w-auto">
-              <button class="bg-rose-100 text-rose-800 hover:bg-rose-200 text-[9px] font-black uppercase px-4 py-2.5 rounded-xl shadow-sm transition-all text-center">SUSPEND ACCOUNT</button>
-              <button class="bg-[#1B4D3E] text-white hover:bg-[#143a2e] text-[9px] font-black uppercase px-4 py-2.5 rounded-xl shadow-sm transition-all text-center">SEND MESSAGE</button>
+
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button onclick="openSendNotificationModal('Merchant', false)" class="bg-[#1B4D3E] text-white hover:bg-[#143a2e] text-[10px] font-black uppercase px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                SEND NOTIFICATION
+              </button>
+              <select id="merchantSuspendReason" class="text-xs font-bold text-gray-700 p-2.5 border border-gray-300 rounded-xl bg-white focus:outline-none">
+                <option value="">Select suspension reason...</option>
+                <option value="Expired Business Permit (Unrenewed)">Expired Business Permit</option>
+                <option value="Food Quality / Safety Violation">Food Quality / Safety Violation</option>
+                <option value="Repeated Unfulfilled Consumer Orders">Repeated Unfulfilled Orders</option>
+                <option value="Fraudulent Listing Activity">Fraudulent Listing Activity</option>
+              </select>
+              <button onclick="executeSuspend('Merchant')" class="bg-rose-100 text-rose-800 hover:bg-rose-200 text-[10px] font-black uppercase px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                SUSPEND USER
+              </button>
             </div>
           </div>
         </div>
+        <input type="hidden" id="activeMerchantId">
       </div>
     </div>
 
-    <!-- FOOD BANK VIEW MODAL -->
+    <!-- 4. FOOD BANK PENDING REVIEW MODAL (NO AI OCR, ONLY GOVT DOCS) -->
+    <div id="foodBankPendingModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[920px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+        <div class="bg-amber-500 px-6 py-4 rounded-t-[32px] flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white">
+              <i data-lucide="hand-heart" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 id="fbPendingModalTitle" class="font-black text-white text-base tracking-tight">Food Bank Verification</h3>
+              <p class="text-[10px] text-white/80 font-bold uppercase tracking-wider">NGO / Government Accreditation Review</p>
+            </div>
+          </div>
+          <button onclick="toggleModal('foodBankPendingModal')" class="w-8 h-8 rounded-full bg-white/30 hover:bg-white/50 text-white flex items-center justify-center font-black text-sm">✕</button>
+        </div>
+
+        <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-5 text-xs">
+          <div class="md:col-span-7 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <h4 class="font-black text-[#1B4D3E] text-sm border-b pb-2.5 flex items-center gap-2">
+              <i data-lucide="clipboard-check" class="w-4 h-4 text-[#3A826D]"></i> Organization Registration Details
+            </h4>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="col-span-2">
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Organization Name</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-gray-800 mt-0.5" id="fbPendingName">...</div>
+              </div>
+              <div class="col-span-2">
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Physical Address</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-gray-800 mt-0.5" id="fbPendingAddress">...</div>
+              </div>
+              <div>
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Contact Person</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-gray-800 mt-0.5" id="fbPendingContact">...</div>
+              </div>
+              <div>
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Contact Number</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-gray-800 mt-0.5" id="fbPendingPhone">...</div>
+              </div>
+              <div>
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Hotline</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-gray-800 mt-0.5" id="fbPendingHotline">...</div>
+              </div>
+              <div>
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Date Registered</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-gray-800 mt-0.5" id="fbPendingDate">...</div>
+              </div>
+              <div class="col-span-2">
+                <label class="text-[9px] font-bold text-gray-400 uppercase">Email Address</label>
+                <div class="bg-gray-50 p-2 rounded-xl font-bold text-blue-600 mt-0.5" id="fbPendingEmail">...</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-5 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between items-center text-center gap-4">
+            <div class="space-y-1">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Submitted Certificate</h4>
+              <p class="text-[11px] text-gray-500">Verify the uploaded DSWD / SEC / LGU accreditation certificate.</p>
+            </div>
+            <div class="w-full bg-gray-50 rounded-2xl border border-gray-200 p-5 flex flex-col items-center gap-3">
+              <i data-lucide="file-text" class="w-10 h-10 text-[#3A826D]"></i>
+              <p class="text-[10px] font-bold text-gray-600">Certificate Expiry: <strong id="fbPendingExpiry">YYYY-MM-DD</strong></p>
+              <button id="fbPendingPermitBtn" class="bg-[#1B4D3E] hover:bg-[#143a2e] text-white text-xs font-black py-2.5 px-4 rounded-xl w-full shadow-sm flex items-center justify-center gap-1">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Inspect Document
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white rounded-b-[32px] border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
+          <div class="flex items-center gap-2 w-full md:w-auto">
+            <select id="fbRejectReasonSelect" class="text-xs font-bold text-gray-700 p-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none">
+              <option value="">Select rejection reason...</option>
+              <option value="Blurry or unreadable certificate (Please upload a clear copy)">Blurry or unreadable certificate</option>
+              <option value="Accreditation certificate is expired">Accreditation is expired</option>
+              <option value="Organization name does not match certificate">Organization Name Mismatch</option>
+            </select>
+            <button onclick="executeReject('FoodBank')" class="bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs px-5 py-2.5 rounded-xl hover:bg-rose-100 transition-colors">
+              REJECT APPLICATION
+            </button>
+          </div>
+          <button onclick="executeApprove('FoodBank')" class="bg-[#1B4D3E] text-white font-black text-xs px-8 py-2.5 rounded-xl hover:bg-[#143a2e] transition-colors w-full md:w-auto shadow-sm">
+            APPROVE ORGANIZATION
+          </button>
+        </div>
+        <input type="hidden" id="pendingFoodBankId">
+      </div>
+    </div>
+
+    <!-- 5. FOOD BANK ACTIVE VIEW MODAL -->
     <div id="foodBankViewModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[760px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[920px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
         <div class="bg-[#A2C9B6] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-[#3A826D] flex items-center justify-center text-white">
               <i data-lucide="hand-heart" class="w-5 h-5"></i>
             </div>
-            <h3 id="fbViewName" class="font-black text-[#1B4D3E] text-lg tracking-tight">Organization</h3>
+            <div>
+              <h3 id="fbViewName" class="font-black text-[#1B4D3E] text-lg tracking-tight">Organization</h3>
+              <p class="text-[10px] text-[#1B4D3E] font-bold uppercase">Food Bank Partner Overview</p>
+            </div>
           </div>
           <button onclick="toggleModal('foodBankViewModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm transition-all focus:outline-none">✕</button>
         </div>
-        <div class="p-5 space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2 text-xs">
-              <h4 class="font-black text-[#1B4D3E] text-sm">Contact Information</h4>
-              <p><strong>Email:</strong> <span id="fbViewEmail">email@org.com</span></p>
-              <p><strong>Registration Date:</strong> <span id="fbViewDate">YYYY-MM-DD</span></p>
+
+        <div class="p-6 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+            <div class="md:col-span-7 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 text-xs">
+              <h4 class="font-black text-[#1B4D3E] text-sm border-b pb-2.5">Organization Details</h4>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="col-span-2">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Physical Address</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="fbViewAddress">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Contact Person</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="fbViewContact">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Contact Number</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="fbViewPhone">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Hotline</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="fbViewHotline">...</p>
+                </div>
+                <div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Registration Date</span>
+                  <p class="font-bold text-gray-800 mt-0.5" id="fbViewDate">...</p>
+                </div>
+                <div class="col-span-2">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase block">Email Address</span>
+                  <p class="font-bold text-blue-600 mt-0.5" id="fbViewEmail">...</p>
+                </div>
+              </div>
             </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center items-center gap-3">
-              <i data-lucide="folder-check" class="w-8 h-8 text-[#3A826D]"></i>
-              <button id="fbPermitBtn" class="bg-[#8BC3A3] hover:bg-[#3A826D] hover:text-white transition-colors text-[#1B4D3E] font-black text-xs px-4 py-2 rounded-xl w-full">View Registration Docs</button>
+
+            <div class="md:col-span-5 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between gap-3 text-xs">
+              <div class="space-y-2.5">
+                <h4 class="font-black text-[#1B4D3E] text-sm border-b pb-2.5">Government Certificate</h4>
+                <div class="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <p class="flex justify-between"><span class="text-gray-500 font-bold">Document Type:</span><strong class="text-gray-800">NGO Accreditation</strong></p>
+                  <p class="flex justify-between"><span class="text-gray-500 font-bold">Valid Until:</span><strong class="text-[#1B4D3E]" id="fbViewExpiry">YYYY-MM-DD</strong></p>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <button id="fbPermitBtn" class="bg-[#8BC3A3] hover:bg-[#3A826D] hover:text-white transition-colors text-[#1B4D3E] font-black text-xs px-4 py-2.5 rounded-xl w-full">
+                  View Registration Docs
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button id="fbVisitProfileBtn" class="bg-[#1B4D3E] hover:bg-[#143a2e] text-white font-black text-[10px] uppercase px-3 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1">
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Visit Profile
+                  </button>
+                  <button onclick="toggleSection('fbTransactionsSection')" class="bg-[#3A826D] hover:bg-[#2D6A56] text-white font-black text-[10px] uppercase px-3 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1">
+                    <i data-lucide="receipt" class="w-3.5 h-3.5"></i> Transactions
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- Expandable Food Bank Transactions Table -->
+          <div id="fbTransactionsSection" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div class="flex justify-between items-center">
+              <h4 class="font-black text-[#1B4D3E] text-sm">Donation & Claim Transactions</h4>
+              <button onclick="toggleSection('fbTransactionsSection')" class="text-[10px] font-black text-gray-400 hover:text-rose-500">HIDE TABLE ✕</button>
+            </div>
+            <div class="overflow-x-auto rounded-2xl border border-gray-100">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-[#1B4D3E] text-white text-[10px] font-bold uppercase">
+                  <tr>
+                    <th class="p-3">Donation ID</th>
+                    <th class="p-3">Donor Merchant</th>
+                    <th class="p-3">Food Quantity</th>
+                    <th class="p-3">Date</th>
+                    <th class="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 font-medium">
+                  <tr class="hover:bg-gray-50/80">
+                    <td class="p-3 font-bold text-gray-700">DON-410</td>
+                    <td class="p-3 font-bold text-[#1B4D3E]">Cebu Bakeshop</td>
+                    <td class="p-3 text-gray-600">12 kg Bread & Pastries</td>
+                    <td class="p-3 text-gray-500">2026-10-11</td>
+                    <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">Received</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Footer Controls -->
           <div class="pt-2 flex flex-col md:flex-row items-center justify-between gap-3">
             <div class="bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm">
               <span id="fbStatusBadge" class="bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase">VERIFIED NGO</span>
             </div>
-            <div class="grid grid-cols-1 md:w-auto">
-              <button class="bg-[#1B4D3E] text-white hover:bg-[#143a2e] text-[9px] font-black uppercase px-6 py-2.5 rounded-xl shadow-sm transition-all text-center">SEND MESSAGE</button>
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button onclick="openSendNotificationModal('FoodBank', false)" class="bg-[#1B4D3E] text-white hover:bg-[#143a2e] text-[10px] font-black uppercase px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                SEND NOTIFICATION
+              </button>
+              <select id="fbSuspendReason" class="text-xs font-bold text-gray-700 p-2.5 border border-gray-300 rounded-xl bg-white focus:outline-none">
+                <option value="">Select suspension reason...</option>
+                <option value="Expired Government Accreditation">Expired Accreditation</option>
+                <option value="Unclaimed Donation Pickups">Unclaimed Donation Pickups</option>
+                <option value="Policy Violation">Policy Violation</option>
+              </select>
+              <button onclick="executeSuspend('FoodBank')" class="bg-rose-100 text-rose-800 hover:bg-rose-200 text-[10px] font-black uppercase px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                SUSPEND USER
+              </button>
             </div>
           </div>
         </div>
+        <input type="hidden" id="activeFoodBankId">
+      </div>
+    </div>
+
+    <!-- 6. PRE-MADE NOTIFICATIONS MODAL -->
+    <div id="sendNotificationModal" style="z-index: 9990;" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+      <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-md shadow-2xl border border-gray-100 overflow-hidden">
+        <div class="bg-[#A2C9B6] px-6 py-4 flex justify-between items-center">
+          <div>
+            <h3 class="font-black text-[#1B4D3E] text-base">Send Admin Notification</h3>
+            <p class="text-[10px] text-gray-700 font-bold">Select a pre-made compliance notice</p>
+          </div>
+          <button onclick="closeModal('sendNotificationModal')" class="w-8 h-8 rounded-full bg-white/60 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm">✕</button>
+        </div>
+
+        <div class="p-5 space-y-3 text-xs">
+          <label class="flex items-start gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 cursor-pointer">
+            <input type="radio" name="premadeNotifOption" value="Please make sure your uploaded food listing pictures are clear and accurate." class="mt-1" checked>
+            <div>
+              <p class="font-black text-[#1B4D3E]">Option 1: Clear Listing Pictures Reminder</p>
+              <p class="text-gray-500 text-[11px] mt-0.5">"Please make sure your uploaded food listing pictures are clear and accurate."</p>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 cursor-pointer">
+            <input type="radio" id="renewalNotifRadio" name="premadeNotifOption" value="Your Business Permit / Accreditation is nearing expiration. Please submit a renewed permit to maintain active status." data-renewal="true" class="mt-1">
+            <div>
+              <p class="font-black text-amber-600">Option 2: Business Permit Renewal Notice</p>
+              <p class="text-gray-500 text-[11px] mt-0.5">"Your Business Permit / Accreditation is nearing expiration. Please submit a renewed permit to maintain active status."</p>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 cursor-pointer">
+            <input type="radio" name="premadeNotifOption" value="Please update your active surplus food quantities and pickup windows regularly." class="mt-1">
+            <div>
+              <p class="font-black text-[#1B4D3E]">Option 3: Pickup Schedule & Inventory Reminder</p>
+              <p class="text-gray-500 text-[11px] mt-0.5">"Please update your active surplus food quantities and pickup windows regularly."</p>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 cursor-pointer">
+            <input type="radio" name="premadeNotifOption" value="Reminder: Please ensure all surplus food items meet safety and packaging standards before pickup." class="mt-1">
+            <div>
+              <p class="font-black text-[#1B4D3E]">Option 4: Food Safety & Packaging Standard</p>
+              <p class="text-gray-500 text-[11px] mt-0.5">"Reminder: Please ensure all surplus food items meet safety and packaging standards before pickup."</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="p-4 bg-white border-t border-gray-100 flex justify-end gap-2">
+          <button onclick="closeModal('sendNotificationModal')" class="bg-gray-50 border border-gray-200 text-gray-600 font-black text-xs px-5 py-2.5 rounded-xl">CANCEL</button>
+          <button onclick="executeSendNotification()" class="bg-[#1B4D3E] text-white font-black text-xs px-6 py-2.5 rounded-xl hover:bg-[#143a2e]">SEND NOTIFICATION</button>
+        </div>
+        <input type="hidden" id="notifTargetRole">
       </div>
     </div>
 
@@ -542,6 +1063,6 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => { lucide.createIcons(); });
   </script>
-  <script src="{% static 'js/main.js' %}?v=2.1"></script>
+  <script src="{% static 'js/main.js' %}?v=3.1"></script>
 </body>
 </html>

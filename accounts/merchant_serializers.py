@@ -10,40 +10,42 @@ class MerchantRegistrationSerializer(serializers.ModelSerializer):
     
     # Merchant fields
     bus_name = serializers.CharField(max_length=255)
+    address = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    contact_person = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    hotline = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=50, required=False, allow_blank=True)
     merch_type = serializers.CharField(max_length=50)
-    bus_permit_path = serializers.FileField() # Accepts the incoming file
+    
+    bus_permit_path = serializers.FileField()
     bus_expiry_date = serializers.DateField()
 
     class Meta:
         model = Merchant
         fields = [
             'user_email', 'user_pass', 'bus_name', 
+            'address', 'contact_person', 'hotline', 'phone',
             'merch_type', 'bus_permit_path', 'bus_expiry_date'
         ]
 
     def create(self, validated_data):
-        # Extract user data
         email = validated_data.pop('user_email')
         password = validated_data.pop('user_pass')
         
-        # --- NEW: INTERCEPT AND SAVE THE PHYSICAL FILE ---
         permit_file = validated_data.pop('bus_permit_path')
         saved_path = default_storage.save(permit_file.name, permit_file)
         
-        # Create the base user with role 'Merchant'
         user = User.objects.create(
             user_email=email,
             user_pass=make_password(password),
             user_role='Merchant'
         )
         
-        # Create the merchant profile linked to this user
         merchant = Merchant.objects.create(
             user=user,
             plan_id=1, 
             is_verified=False,
             status='Pending',
-            bus_permit_path=saved_path, # Save the physical file's location to the DB
-            **validated_data
+            bus_permit_path=saved_path,
+            **validated_data # This automatically handles address, contact_person, hotline, and phone
         )
         return merchant

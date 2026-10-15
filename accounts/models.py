@@ -67,15 +67,25 @@ class Merchant(models.Model):
     merch_id = models.AutoField(primary_key=True)
     bus_name = models.CharField(max_length=255)
     merch_type = models.CharField(max_length=50)
+    
+    # Registration Details
+    address = models.CharField(max_length=255, null=True, blank=True)
+    contact_person = models.CharField(max_length=255, null=True, blank=True)
+    hotline = models.CharField(max_length=50, null=True, blank=True)
+    phone = models.CharField(max_length=50, null=True, blank=True)
+    
     bus_permit_path = models.CharField(max_length=255)
     bus_expiry_date = models.DateField()
-    ocr_confidence = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    ocr_extracted_text = models.TextField(blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     status = models.CharField(max_length=50, default='Pending')
+    status_reason = models.TextField(blank=True, null=True)  # Stores rejection/suspension/renewal reason
     wallet_bal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
+    ocr_confidence = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    ocr_extracted_text = models.TextField(blank=True, null=True)
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, db_column='user_id', related_name='merchant_profile')
-    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT, db_column='plan_id', related_name='merchants')
+    plan = models.ForeignKey('SubscriptionPlan', on_delete=models.PROTECT, db_column='plan_id', related_name='merchants')
 
     class Meta:
         db_table = 'merchant'
@@ -100,9 +110,17 @@ class MerchantContact(models.Model):
 class FoodBank(models.Model):
     org_id = models.AutoField(primary_key=True)
     org_name = models.CharField(max_length=255)
+    
+    # Registration Details (Mirrors Merchant)
+    address = models.CharField(max_length=255, null=True, blank=True)
+    contact_person = models.CharField(max_length=255, null=True, blank=True)
+    hotline = models.CharField(max_length=50, null=True, blank=True)
+    phone = models.CharField(max_length=50, null=True, blank=True)
+    
     accreditation_path = models.CharField(max_length=255)
     accreditation_expiry = models.DateField(blank=True, null=True)
     status = models.CharField(max_length=50, default='Pending')
+    status_reason = models.TextField(blank=True, null=True)
     total_food_received = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     user = models.OneToOneField(User, on_delete=models.CASCADE, db_column='user_id', related_name='food_bank_profile')
 
@@ -117,6 +135,9 @@ class Consumer(models.Model):
     cons_id = models.AutoField(primary_key=True)
     cons_fullname = models.CharField(max_length=255)
     phone_num = models.CharField(max_length=20, blank=True, null=True)
+    address = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=50, default='Active')
+    status_reason = models.TextField(blank=True, null=True)
     total_food_saved = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     user = models.OneToOneField(User, on_delete=models.CASCADE, db_column='user_id', related_name='consumer_profile')
 

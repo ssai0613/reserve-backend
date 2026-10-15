@@ -91,6 +91,12 @@ window.toggleModal = function(modalId) {
   }
 };
 
+window.toggleSection = function(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (!el) return;
+  el.classList.toggle('hidden');
+};
+
 function initCalendarPickers() {
   if (window.flatpickr) {
     flatpickr(".date-range-picker", {
@@ -166,7 +172,6 @@ window.triggerSortByCriteria = function(selectElement) {
       return isAscending ? tA - tB : tB - tA;
     }
     
-    // Default name sort 
     const nameA = a.children[1]?.textContent.trim().toLowerCase() || '';
     const nameB = b.children[1]?.textContent.trim().toLowerCase() || '';
     return isAscending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
@@ -243,7 +248,7 @@ function updateRoleStats(roleName) {
     const status = row.getAttribute('data-status') || '';
     if (status.includes('active')) {
       active++;
-    } else if (status.includes('pending') || status.includes('suspended') || status.includes('rejected') || status.includes('flagged')) {
+    } else {
       suspendedOrPending++;
     }
   });
@@ -261,40 +266,86 @@ function updateRoleStats(roleName) {
 }
 
 // =========================================================
-// DYNAMIC MODAL INJECTION & OCR
+// 1. CONSUMER MODAL
 // =========================================================
 window.openConsumerModal = function(btn) {
-  document.getElementById('consViewName').textContent = btn.dataset.name;
-  document.getElementById('consViewId').textContent = btn.dataset.id;
-  document.getElementById('consViewEmail').textContent = btn.dataset.email;
-  document.getElementById('consViewPhone').textContent = btn.dataset.phone;
-  document.getElementById('consViewDate').textContent = btn.dataset.date;
+  document.getElementById('activeConsumerRawId').value = btn.dataset.rawId || '';
+  document.getElementById('consViewName').textContent = btn.dataset.name || 'Consumer';
+  document.getElementById('consViewFullName').textContent = btn.dataset.name || 'Consumer';
+  document.getElementById('consViewId').textContent = btn.dataset.id || 'ID';
+  document.getElementById('consViewEmail').textContent = btn.dataset.email || 'N/A';
+  document.getElementById('consViewPhone').textContent = btn.dataset.phone || 'Not Provided';
+  document.getElementById('consViewAddress').textContent = btn.dataset.address || 'Not Provided';
+  document.getElementById('consViewDate').textContent = btn.dataset.date || 'N/A';
   
-  if(btn.dataset.name) {
+  const statusEl = document.getElementById('consStatusBadge');
+  const statusStr = (btn.dataset.status || 'Active').toUpperCase();
+  if (statusEl) {
+    statusEl.textContent = statusStr;
+    statusEl.className = statusStr === 'SUSPENDED'
+      ? "bg-rose-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase"
+      : "bg-emerald-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase";
+  }
+
+  if (btn.dataset.name) {
     document.getElementById('consInitials').textContent = btn.dataset.name.charAt(0).toUpperCase();
   }
 
   window.openModal('consumerViewModal');
 };
 
+// =========================================================
+// 2. MERCHANT REVIEW MODAL (WITH EDITABLE OCR)
+// =========================================================
+window.setOcrInputsEditable = function(isEditable) {
+  const inputs = document.querySelectorAll('.ocr-editable-input');
+  const toggleBtn = document.getElementById('ocrEditToggleBtn');
+  inputs.forEach(input => {
+    input.readOnly = !isEditable;
+    if (isEditable) {
+      input.parentElement.classList.remove('bg-gray-50', 'border-gray-200');
+      input.parentElement.classList.add('bg-white', 'border-amber-400', 'ring-2', 'ring-amber-200');
+    } else {
+      input.parentElement.classList.add('bg-gray-50', 'border-gray-200');
+      input.parentElement.classList.remove('bg-white', 'border-amber-400', 'ring-2', 'ring-amber-200');
+    }
+  });
+  if (toggleBtn) {
+    toggleBtn.innerHTML = isEditable
+      ? `<i data-lucide="check" class="w-3 h-3"></i> Lock Edits`
+      : `<i data-lucide="pencil" class="w-3 h-3"></i> Manual Edit OCR`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+};
+
+window.toggleOcrManualEdit = function() {
+  const firstInput = document.getElementById('ocrDetectName');
+  if (!firstInput) return;
+  const willBeEditable = firstInput.readOnly;
+  window.setOcrInputsEditable(willBeEditable);
+  if (willBeEditable) {
+    firstInput.focus();
+  }
+};
+
 window.openPendingModal = function(btn) {
   const merchantId = btn.dataset.id;
-  const businessName = btn.dataset.name;
-  const merchType = btn.dataset.type || 'Standard';
-  const email = btn.dataset.email || 'N/A';
-  const regDate = btn.dataset.date || 'N/A';
-  const permitUrl = btn.dataset.permit || '';
+  const businessName = btn.dataset.name || 'Merchant';
 
   document.getElementById('pendingModalTitle').textContent = businessName;
   document.getElementById('pendingBusName').textContent = businessName;
-  document.getElementById('pendingMerchType').textContent = merchType;
-  document.getElementById('pendingEmail').textContent = email;
-  document.getElementById('pendingDate').textContent = regDate;
+  document.getElementById('pendingMerchType').textContent = btn.dataset.type || 'Standard';
+  document.getElementById('pendingAddress').textContent = btn.dataset.address || 'Not Provided';
+  document.getElementById('pendingContact').textContent = btn.dataset.contact || 'Not Provided';
+  document.getElementById('pendingPhone').textContent = btn.dataset.phone || 'Not Provided';
+  document.getElementById('pendingHotline').textContent = btn.dataset.hotline || 'N/A';
+  document.getElementById('pendingEmail').textContent = btn.dataset.email || 'N/A';
+  document.getElementById('pendingDate').textContent = btn.dataset.date || 'N/A';
   document.getElementById('pendingMerchantId').value = merchantId;
 
   const fileBtn = document.getElementById('pendingPermitBtn');
   if (fileBtn) {
-    fileBtn.onclick = () => window.open(permitUrl, '_blank');
+    fileBtn.onclick = () => window.open(btn.dataset.permit || '', '_blank');
   }
 
   let ocrData = {};
@@ -304,15 +355,23 @@ window.openPendingModal = function(btn) {
     ocrData = {};
   }
 
-  document.getElementById('ocrDetectName').textContent = ocrData.business_name || 'Not Detected';
-  document.getElementById('ocrDetectPermitNo').textContent = ocrData.permit_number || 'Not Detected';
-  document.getElementById('ocrDetectLGU').textContent = ocrData.lgu_anchor || 'Unverified';
-  document.getElementById('ocrDetectAddress').textContent = ocrData.business_address || 'Not Detected';
-  document.getElementById('ocrDetectNature').textContent = ocrData.nature_of_business || 'Not Detected';
-  document.getElementById('ocrDetectYear').textContent = ocrData.calendar_year ? `Year ${ocrData.calendar_year}` : 'Not Detected';
+  document.getElementById('ocrDetectName').value = ocrData.business_name || 'Not Detected';
+  document.getElementById('ocrDetectPermitNo').value = ocrData.permit_number || 'Not Detected';
+  document.getElementById('ocrDetectLGU').value = ocrData.lgu_anchor || 'Unverified';
+  document.getElementById('ocrDetectAddress').value = ocrData.business_address || 'Not Detected';
+  document.getElementById('ocrDetectNature').value = ocrData.nature_of_business || 'Not Detected';
+  document.getElementById('ocrDetectYear').value = ocrData.calendar_year ? `Year ${ocrData.calendar_year}` : 'Not Detected';
   
   const repText = [ocrData.representative, ocrData.ownership_type].filter(Boolean).join(' • ');
-  document.getElementById('ocrDetectRep').textContent = repText || ocrData.taxpayer_name || 'Not Detected';
+  document.getElementById('ocrDetectRep').value = repText || ocrData.taxpayer_name || 'Not Detected';
+
+  const detectedExpiry = (ocrData.expiry_date && ocrData.expiry_date !== 'Not Detected')
+    ? ocrData.expiry_date
+    : (btn.dataset.expiry || '');
+  document.getElementById('ocrDetectExpiry').value = detectedExpiry;
+
+  // Reset manual edit mode to locked by default
+  window.setOcrInputsEditable(false);
 
   const confidence = ocrData.confidence_score ? `${ocrData.confidence_score}%` : 'Pending/0.0%';
   const confidenceEl = document.getElementById('ocrConfidenceScore');
@@ -328,32 +387,71 @@ window.openPendingModal = function(btn) {
   window.openModal('merchantPendingModal');
 };
 
+// =========================================================
+// 3. MERCHANT VIEW MODAL (ACTIVE / SUSPENDED / EXPIRY CHECK)
+// =========================================================
 window.openActiveModal = function(btn) {
-  document.getElementById('activeModalTitle').textContent = btn.dataset.name;
-  
-  const typeEl = document.getElementById('activeMerchType');
-  if (typeEl) typeEl.textContent = btn.dataset.type || 'N/A';
+  const merchantId = btn.dataset.id;
+  document.getElementById('activeMerchantId').value = merchantId;
+  document.getElementById('activeModalTitle').textContent = btn.dataset.name || 'Merchant';
+  document.getElementById('activeBusName').textContent = btn.dataset.name || 'N/A';
+  document.getElementById('activeMerchType').textContent = btn.dataset.type || 'N/A';
+  document.getElementById('activeBusAddress').textContent = btn.dataset.address || 'Not Provided';
+  document.getElementById('activeContactPerson').textContent = btn.dataset.contact || 'Not Provided';
+  document.getElementById('activeContactPhone').textContent = btn.dataset.phone || 'Not Provided';
+  document.getElementById('activeHotline').textContent = btn.dataset.hotline || 'N/A';
+  document.getElementById('activeBusEmail').textContent = btn.dataset.email || 'N/A';
+  document.getElementById('activeBusDate').textContent = btn.dataset.date || 'N/A';
+  document.getElementById('activeStatusDate').textContent = btn.dataset.date || 'N/A';
 
-  const emailEl = document.getElementById('activeBusEmail');
-  if (emailEl) emailEl.textContent = btn.dataset.email || 'N/A';
-  
-  const dateEl = document.getElementById('activeBusDate');
-  const activeStatusDate = document.getElementById('activeStatusDate');
-  if (dateEl) dateEl.textContent = btn.dataset.date || 'N/A';
-  if (activeStatusDate) activeStatusDate.textContent = btn.dataset.date || 'N/A';
-  
+  // Hide transactions table initially when opening modal
+  const txSection = document.getElementById('merchantTransactionsSection');
+  if (txSection) txSection.classList.add('hidden');
+
+  // Parse OCR Data to show Permit No & LGU
+  let ocrData = {};
+  try {
+    ocrData = JSON.parse(btn.dataset.ocr || '{}');
+  } catch (e) {
+    ocrData = {};
+  }
+  document.getElementById('activePermitNo').textContent = ocrData.permit_number || 'Verified on File';
+  document.getElementById('activePermitLGU').textContent = ocrData.lgu_anchor || 'Cebu City LGU';
+
+  // Check Permit Expiry (Warn if expiring within 30 days or already expired)
+  const expiryStr = btn.dataset.expiry || '';
+  document.getElementById('activePermitExpiry').textContent = expiryStr || 'N/A';
+  const expiryAlert = document.getElementById('activePermitExpiryAlert');
+  const expiryAlertText = document.getElementById('activePermitExpiryAlertText');
+
+  if (expiryStr && expiryAlert) {
+    const today = new Date();
+    const expiryDate = new Date(expiryStr);
+    const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      expiryAlert.classList.remove('hidden');
+      expiryAlertText.textContent = `Business Permit EXPIRED on ${expiryStr} (${Math.abs(diffDays)} days ago). Request renewal immediately.`;
+    } else if (diffDays <= 30) {
+      expiryAlert.classList.remove('hidden');
+      expiryAlertText.textContent = `Business Permit expires in ${diffDays} days (${expiryStr}). Notify merchant to submit renewed permit.`;
+    } else {
+      expiryAlert.classList.add('hidden');
+    }
+  }
+
   const statusBadge = document.getElementById('activeStatusBadge');
   const statusWrapper = document.getElementById('activeStatusWrapper');
-  const userStatus = btn.dataset.status.toLowerCase();
+  const userStatus = (btn.dataset.status || 'Active').toLowerCase();
 
   if (userStatus === 'active') {
     statusBadge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> VERIFIED`;
     statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
-    statusWrapper.className = "bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
+    statusWrapper.className = "bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 shrink-0 shadow-sm";
   } else {
-    statusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ${userStatus}`;
+    statusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ${btn.dataset.status}`;
     statusBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
-    statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
+    statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 shrink-0 shadow-sm";
   }
 
   const fileBtn = document.getElementById('activePermitBtn');
@@ -361,27 +459,63 @@ window.openActiveModal = function(btn) {
     fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
   }
 
+  const visitBtn = document.getElementById('activeVisitProfileBtn');
+  if (visitBtn) {
+    visitBtn.onclick = () => {
+      window.location.href = `/food-listing/?merchant=MID-${merchantId}`;
+    };
+  }
+
   window.openModal('merchantActiveModal');
 };
 
+// =========================================================
+// 4. FOOD BANK PENDING & ACTIVE MODALS
+// =========================================================
+window.openFoodBankPendingModal = function(btn) {
+  document.getElementById('pendingFoodBankId').value = btn.dataset.id;
+  document.getElementById('fbPendingModalTitle').textContent = btn.dataset.name || 'Food Bank';
+  document.getElementById('fbPendingName').textContent = btn.dataset.name || 'N/A';
+  document.getElementById('fbPendingAddress').textContent = btn.dataset.address || 'Not Provided';
+  document.getElementById('fbPendingContact').textContent = btn.dataset.contact || 'Not Provided';
+  document.getElementById('fbPendingPhone').textContent = btn.dataset.phone || 'Not Provided';
+  document.getElementById('fbPendingHotline').textContent = btn.dataset.hotline || 'N/A';
+  document.getElementById('fbPendingEmail').textContent = btn.dataset.email || 'N/A';
+  document.getElementById('fbPendingDate').textContent = btn.dataset.date || 'N/A';
+  document.getElementById('fbPendingExpiry').textContent = btn.dataset.expiry || 'N/A';
+
+  const fileBtn = document.getElementById('fbPendingPermitBtn');
+  if (fileBtn) {
+    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
+  }
+
+  window.openModal('foodBankPendingModal');
+};
+
 window.openFoodBankModal = function(btn) {
-  document.getElementById('fbViewName').textContent = btn.dataset.name;
-  
-  const emailEl = document.getElementById('fbViewEmail');
-  if (emailEl) emailEl.textContent = btn.dataset.email || 'N/A';
-  
-  const dateEl = document.getElementById('fbViewDate');
-  if (dateEl) dateEl.textContent = btn.dataset.date || 'N/A';
+  const fbId = btn.dataset.id;
+  document.getElementById('activeFoodBankId').value = fbId;
+  document.getElementById('fbViewName').textContent = btn.dataset.name || 'Organization';
+  document.getElementById('fbViewAddress').textContent = btn.dataset.address || 'Not Provided';
+  document.getElementById('fbViewContact').textContent = btn.dataset.contact || 'Not Provided';
+  document.getElementById('fbViewPhone').textContent = btn.dataset.phone || 'Not Provided';
+  document.getElementById('fbViewHotline').textContent = btn.dataset.hotline || 'N/A';
+  document.getElementById('fbViewEmail').textContent = btn.dataset.email || 'N/A';
+  document.getElementById('fbViewDate').textContent = btn.dataset.date || 'N/A';
+  document.getElementById('fbViewExpiry').textContent = btn.dataset.expiry || 'N/A';
+
+  const txSection = document.getElementById('fbTransactionsSection');
+  if (txSection) txSection.classList.add('hidden');
 
   const statusBadge = document.getElementById('fbStatusBadge');
-  const userStatus = btn.dataset.status.toLowerCase();
+  const userStatus = (btn.dataset.status || 'Active').toLowerCase();
   
   if (userStatus === 'active') {
     statusBadge.textContent = "VERIFIED NGO";
     statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
   } else {
-    statusBadge.textContent = "PENDING REVIEW";
-    statusBadge.className = "bg-amber-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
+    statusBadge.textContent = btn.dataset.status.toUpperCase();
+    statusBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
   }
 
   const fileBtn = document.getElementById('fbPermitBtn');
@@ -389,22 +523,32 @@ window.openFoodBankModal = function(btn) {
     fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
   }
 
+  const visitBtn = document.getElementById('fbVisitProfileBtn');
+  if (visitBtn) {
+    visitBtn.onclick = () => {
+      window.location.href = `/donations/?foodbank=FB-${fbId}`;
+    };
+  }
+
   window.openModal('foodBankViewModal');
 };
 
+// =========================================================
+// 5. COMPLIANCE API ACTIONS (APPROVE, REJECT, SUSPEND, NOTIFY)
+// =========================================================
 function getCSRFToken() {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, 10) === ('csrftoken=')) {
-                cookieValue = decodeURIComponent(cookie.substring(10));
-                break;
-            }
-        }
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, 10) === ('csrftoken=')) {
+        cookieValue = decodeURIComponent(cookie.substring(10));
+        break;
+      }
     }
-    return cookieValue;
+  }
+  return cookieValue;
 }
 
 window.themeAlert = function(title, message, isSuccess = true) {
@@ -459,24 +603,41 @@ window.themeConfirm = function(title, message) {
   });
 };
 
-window.executeApprove = async function() {
-  const accountId = document.getElementById('pendingMerchantId').value;
+window.executeApprove = async function(role = 'Merchant') {
+  const accountId = role === 'FoodBank'
+    ? document.getElementById('pendingFoodBankId').value
+    : document.getElementById('pendingMerchantId').value;
+
   const isConfirmed = await themeConfirm(
     "Approve Registration", 
-    `Are you sure you want to officially approve Merchant ID ${accountId} and grant them platform access?`
+    `Are you sure you want to officially approve ${role} ID ${accountId} and save the verified details to the database?`
   );
-  
   if (!isConfirmed) return;
+
+  const payload = { action: 'approve', role: role };
+
+  if (role === 'Merchant') {
+    payload.ocr_edits = {
+      business_name: document.getElementById('ocrDetectName').value,
+      permit_number: document.getElementById('ocrDetectPermitNo').value,
+      lgu_anchor: document.getElementById('ocrDetectLGU').value,
+      business_address: document.getElementById('ocrDetectAddress').value,
+      nature_of_business: document.getElementById('ocrDetectNature').value,
+      calendar_year: document.getElementById('ocrDetectYear').value.replace(/^Year\s+/i, ''),
+      representative: document.getElementById('ocrDetectRep').value,
+      expiry_date: document.getElementById('ocrDetectExpiry').value
+    };
+  }
 
   try {
     const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-      body: JSON.stringify({ action: 'approve' })
+      body: JSON.stringify(payload)
     });
 
     if (response.ok) {
-      await themeAlert("Merchant Approved!", `Account ${accountId} is now active and verified.`, true);
+      await themeAlert("Registration Approved!", `${role} account ${accountId} is now active and verified.`, true);
       window.location.reload(); 
     } else {
       await themeAlert("Approval Failed", "The server rejected the approval.", false);
@@ -486,9 +647,12 @@ window.executeApprove = async function() {
   }
 };
 
-window.executeReject = async function() {
-  const accountId = document.getElementById('pendingMerchantId').value;
-  const reasonSelect = document.getElementById('rejectReasonSelect');
+window.executeReject = async function(role = 'Merchant') {
+  const accountId = role === 'FoodBank'
+    ? document.getElementById('pendingFoodBankId').value
+    : document.getElementById('pendingMerchantId').value;
+
+  const reasonSelect = document.getElementById(role === 'FoodBank' ? 'fbRejectReasonSelect' : 'rejectReasonSelect');
   const reason = reasonSelect.value;
   
   if (!reason) {
@@ -497,24 +661,138 @@ window.executeReject = async function() {
   }
 
   const isConfirmed = await themeConfirm(
-    "Reject Profile", 
-    `Are you sure you want to reject Merchant ID ${accountId}? They will be notified that the reason is: "${reason}".`
+    "Reject & Request Resubmission", 
+    `Reject ${role} ID ${accountId}? An email will be sent instructing them to resubmit their document due to: "${reason}".`
   );
-  
   if (!isConfirmed) return;
 
   try {
     const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-      body: JSON.stringify({ action: 'reject', reason: reason })
+      body: JSON.stringify({ action: 'reject', role: role, reason: reason })
     });
 
     if (response.ok) {
-      await themeAlert("Profile Rejected", "The merchant application has been formally rejected.", true);
+      await themeAlert("Resubmission Requested", "The applicant has been emailed with a link to upload a new document.", true);
       window.location.reload(); 
     } else {
       await themeAlert("Rejection Failed", "The server failed to update the status.", false);
+    }
+  } catch (error) {
+    await themeAlert("Network Error", "Could not reach the server.", false);
+  }
+};
+
+window.executeConsumerSuspend = async function() {
+  const consId = document.getElementById('activeConsumerRawId').value;
+  const reason = document.getElementById('consumerSuspendReason').value;
+
+  if (!reason) {
+    await themeAlert("Select Reason", "Please select a suspension reason from the dropdown first.", false);
+    return;
+  }
+
+  const isConfirmed = await themeConfirm(
+    "Suspend Consumer Account",
+    `Suspend Consumer CID-${consId} for "${reason}"? They will be notified via email with an appeal link.`
+  );
+  if (!isConfirmed) return;
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${consId}/approval/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ action: 'suspend', role: 'Consumer', reason: reason })
+    });
+
+    if (response.ok) {
+      await themeAlert("Consumer Suspended", "Account suspended and appeal link dispatched to their email.", true);
+      window.location.reload();
+    } else {
+      await themeAlert("Action Failed", "Could not suspend the consumer account.", false);
+    }
+  } catch (error) {
+    await themeAlert("Network Error", "Could not reach the server.", false);
+  }
+};
+
+window.executeSuspend = async function(role = 'Merchant') {
+  const accountId = role === 'FoodBank'
+    ? document.getElementById('activeFoodBankId').value
+    : document.getElementById('activeMerchantId').value;
+
+  const reasonSelect = document.getElementById(role === 'FoodBank' ? 'fbSuspendReason' : 'merchantSuspendReason');
+  const reason = reasonSelect.value;
+
+  if (!reason) {
+    await themeAlert("Select Reason", "Please select a suspension reason from the dropdown before suspending.", false);
+    return;
+  }
+
+  const isConfirmed = await themeConfirm(
+    `Suspend ${role} Account`,
+    `Suspend ${role} ID ${accountId} due to "${reason}"? They will receive an email notification with an appeal link to request reactivation.`
+  );
+  if (!isConfirmed) return;
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ action: 'suspend', role: role, reason: reason })
+    });
+
+    if (response.ok) {
+      await themeAlert("Account Suspended", `The ${role} has been suspended and emailed an appeal link.`, true);
+      window.location.reload();
+    } else {
+      await themeAlert("Suspension Failed", "The server could not process the suspension.", false);
+    }
+  } catch (error) {
+    await themeAlert("Network Error", "Could not reach the server.", false);
+  }
+};
+
+window.openSendNotificationModal = function(role = 'Merchant', selectRenewalOption = false) {
+  document.getElementById('notifTargetRole').value = role;
+  if (selectRenewalOption) {
+    const renewalRadio = document.getElementById('renewalNotifRadio');
+    if (renewalRadio) renewalRadio.checked = true;
+  }
+  window.openModal('sendNotificationModal');
+};
+
+window.executeSendNotification = async function() {
+  const role = document.getElementById('notifTargetRole').value || 'Merchant';
+  const accountId = role === 'FoodBank'
+    ? document.getElementById('activeFoodBankId').value
+    : document.getElementById('activeMerchantId').value;
+
+  const selectedRadio = document.querySelector('input[name="premadeNotifOption"]:checked');
+  if (!selectedRadio) return;
+
+  const message = selectedRadio.value;
+  const isRenewal = selectedRadio.getAttribute('data-renewal') === 'true';
+
+  try {
+    const response = await fetch(`/api/accounts/admin/merchant/${accountId}/approval/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({
+        action: 'notify',
+        role: role,
+        reason: message,
+        is_renewal: isRenewal
+      })
+    });
+
+    if (response.ok) {
+      window.closeModal('sendNotificationModal');
+      await themeAlert("Notification Sent!", `Pre-made compliance notice has been dispatched to ${role} ID ${accountId}.`, true);
+      if (isRenewal) window.location.reload();
+    } else {
+      await themeAlert("Failed to Send", "Could not dispatch the notification.", false);
     }
   } catch (error) {
     await themeAlert("Network Error", "Could not reach the server.", false);
