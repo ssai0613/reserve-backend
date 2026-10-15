@@ -19,6 +19,7 @@ from .models import Consumer, Merchant, User, FoodBank
 from .serializers import UserRegistrationSerializer, CustomLoginSerializer
 from .merchant_serializers import MerchantRegistrationSerializer
 from .utils import extract_cebu_permit_data, simulate_ocr_extraction
+from django.core.files.storage import default_storage
 
 
 def send_compliance_email(to_email, subject, body):
@@ -113,6 +114,68 @@ class MerchantRegistrationView(APIView):
             
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class DocumentResubmissionView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, merch_id):
+        role = request.data.get('role', 'Merchant')
+        permit_file = request.FILES.get('bus_permit_path')
+
+        if not permit_file:
+            return Response({"error": "Please attach a valid permit or certificate file."}, status=status.HTTP_400_BAD_REQUEST)
+
+        saved_path = default_storage.save(permit_file.name, permit_file)
+
+        if role == 'FoodBank':
+            try:
+                fb = FoodBank.objects.get(org_id=merch_id)
+            except FoodBank.DoesNotExist:
+                return Response({"error": "Food Bank not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            fb.accreditation_path = saved_path
+            fb.status = 'Pending'
+            fb.status_reason = ''
+            fb.save()
+
+            return Response({
+                "message": "Document resubmitted successfully! Your account is now back under Admin review."
+            }, status=status.HTTP_200_OK)
+
+        # Default: Merchant Resubmission / Annual Renewal
+        try:
+            merchant = Merchant.objects.get(merch_id=merch_id)
+        except Merchant.DoesNotExist:
+            return Response({"error": "Merchant not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        merchant.bus_permit_path = saved_path
+
+        # Re-run the Cebu City AI OCR Engine on the newly uploaded permit
+        ocr_results = extract_cebu_permit_data(saved_path)
+        if 'raw_text' in ocr_results:
+            del ocr_results['raw_text']
+
+        detected_expiry = ocr_results.get('expiry_date')
+        if detected_expiry and detected_expiry != 'Not Detected':
+            merchant.bus_expiry_date = detected_expiry
+
+        merchant.ocr_extracted_text = json.dumps(ocr_results)
+        merchant.ocr_confidence = ocr_results.get('confidence_score', 0.0)
+        merchant.status = 'Pending'
+        merchant.status_reason = ''
+        merchant.is_verified = False
+        merchant.save()
+
+        AdminNotification.objects.create(
+            user_id=1,
+            admin_notif_type='KYB',
+            message=f"Resubmitted/Renewed permit from {merchant.bus_name}. OCR Confidence: {merchant.ocr_confidence}%",
+            merchant=merchant
+        )
+
+        return Response({
+            "message": "Permit uploaded and scanned! Your application is now pending Admin verification.",
+            "ocr_analysis": ocr_results
+        }, status=status.HTTP_200_OK)
 
 class AdminMerchantApprovalView(APIView):
     def get(self, request):

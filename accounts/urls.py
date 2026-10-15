@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import UserRegistrationView, CustomLoginView, MerchantRegistrationView, AdminMerchantApprovalView
+from .views import UserRegistrationView, CustomLoginView, MerchantRegistrationView, AdminMerchantApprovalView, DocumentResubmissionView
 from . import views
 
 urlpatterns = [
@@ -11,4 +11,5 @@ urlpatterns = [
     path('login/', CustomLoginView.as_view(), name='token_obtain_pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('admin/merchant/<int:merch_id>/approval/', views.AdminMerchantApprovalView.as_view(), name='admin-merchant-approval'),
+    path('merchant/<int:merch_id>/resubmit-permit/', DocumentResubmissionView.as_view(), name='merchant-resubmit-permit'),
 ]

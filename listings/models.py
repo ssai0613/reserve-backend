@@ -57,7 +57,7 @@ class PerishableProduct(models.Model):
 
 class ListingSafety(models.Model):
     listing_id = models.AutoField(primary_key=True)
-    safety_anchor_time = models.DateTimeField()
+    safely_anchor_time = models.CharField(max_length=100, null=True, blank=True)
     anchor_type = models.CharField(max_length=255)  # Preparation, Arrival
     estimated_expiry = models.DateTimeField()
     posted_temp = models.DecimalField(max_digits=5, decimal_places=2)
