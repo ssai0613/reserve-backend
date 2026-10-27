@@ -158,17 +158,34 @@ def fetch_dynamic_records(app_labels, filter_kwargs=None, limit=15):
 
 def normalize_ph_phone(phone_raw):
     """
-    Validates and normalizes a Philippine mobile number:
-    Accepts '09171234567' (11 digits) or '+639171234567' (13 chars) or '639171234567'.
-    Returns ('+639171234567', '09171234567') or (None, None) if invalid.
+    Validates and normalizes any valid Philippine mobile format into ('+639XXXXXXXXX', '09XXXXXXXXX'):
+    - 09171234567 (11 digits)
+    - +639171234567 (+63 + 10 digits)
+    - +6309171234567 (+63 + 11 digits starting with 09)
+    - 639171234567 or 6309171234567
+    - 9171234567 (10 digits starting with 9)
     """
-    cleaned = re.sub(r'[\s\-\(\)]', '', str(phone_raw or ''))
+    # Strip spaces, dashes, parentheses, and non-digit/plus characters
+    cleaned = re.sub(r'[^\d\+]', '', str(phone_raw or ''))
+
+    # Extract the 10-digit subscriber number starting with '9'
+    subscriber = None
     if re.match(r'^09\d{9}$', cleaned):
-        return f"+63{cleaned[1:]}", cleaned
-    if re.match(r'^\+639\d{9}$', cleaned):
-        return cleaned, f"0{cleaned[3:]}"
-    if re.match(r'^639\d{9}$', cleaned):
-        return f"+{cleaned}", f"0{cleaned[2:]}"
+        subscriber = cleaned[1:]          # 09171234567 -> 9171234567
+    elif re.match(r'^\+639\d{9}$', cleaned):
+        subscriber = cleaned[3:]          # +639171234567 -> 9171234567
+    elif re.match(r'^\+6309\d{9}$', cleaned):
+        subscriber = cleaned[4:]          # +6309171234567 -> 9171234567
+    elif re.match(r'^639\d{9}$', cleaned):
+        subscriber = cleaned[2:]          # 639171234567 -> 9171234567
+    elif re.match(r'^6309\d{9}$', cleaned):
+        subscriber = cleaned[3:]          # 6309171234567 -> 9171234567
+    elif re.match(r'^9\d{9}$', cleaned):
+        subscriber = cleaned              # 9171234567 -> 9171234567
+
+    if subscriber and len(subscriber) == 10 and subscriber.startswith('9'):
+        return f"+63{subscriber}", f"0{subscriber}"
+
     return None, None
 
 
@@ -230,7 +247,11 @@ class SendRegistrationOTPView(APIView):
 
     def post(self, request):
         email = str(request.data.get('email', '')).strip().lower()
-        raw_phone = str(request.data.get('phone', '')).strip()
+        raw_phone = str(
+            request.data.get('phone')
+            or request.data.get('phone_number')
+            or ''
+        ).strip()
 
         if not email or '@' not in email:
             return Response({"error": "Please enter a valid email address."}, status=status.HTTP_400_BAD_REQUEST)
