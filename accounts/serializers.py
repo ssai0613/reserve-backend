@@ -39,6 +39,7 @@ class CustomLoginSerializer(serializers.Serializer):
         status_reason = ''
         profile_id = user.user_id
         entity_name = ''
+        merch_type = 'Bakeshop'
         expiry_date_str = ''
 
         if role == 'Merchant':
@@ -46,11 +47,11 @@ class CustomLoginSerializer(serializers.Serializer):
                 merchant = Merchant.objects.get(user=user)
                 profile_id = merchant.merch_id
                 entity_name = merchant.bus_name
+                merch_type = merchant.merch_type or 'Bakeshop'
                 account_status = merchant.status
                 status_reason = merchant.status_reason or ''
                 expiry_date_str = str(merchant.bus_expiry_date) if merchant.bus_expiry_date else ''
 
-                # Automatic Annual Permit Expiry Check on Login
                 if merchant.bus_expiry_date and account_status == 'Active':
                     days_until_expiry = (merchant.bus_expiry_date - datetime.date.today()).days
                     if days_until_expiry < 0:
@@ -60,7 +61,6 @@ class CustomLoginSerializer(serializers.Serializer):
                         merchant.status_reason = status_reason
                         merchant.save()
                     elif days_until_expiry <= 30:
-                        # Warn them or prompt renewal if within 30 days
                         status_reason = f"Your Business Permit expires in {days_until_expiry} days ({merchant.bus_expiry_date})."
             except Merchant.DoesNotExist:
                 pass
@@ -93,8 +93,10 @@ class CustomLoginSerializer(serializers.Serializer):
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'role': role,
+            'email': user.user_email,
             'profile_id': profile_id,
             'entity_name': entity_name,
+            'merch_type': merch_type,
             'account_status': account_status,
             'status_reason': status_reason,
             'expiry_date': expiry_date_str

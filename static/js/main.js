@@ -1,5 +1,5 @@
 /**
- * ReServe Admin Web Portal - Master JS Controller
+ * ReServe Admin Web Portal - Master JS Controller (v3.2 - 100% Database Driven)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +17,183 @@ document.addEventListener('DOMContentLoaded', () => {
   updateRoleStats('Consumer'); 
 });
 
+// =========================================================
+// DASHBOARD CHARTS & HEADER MENUS
+// =========================================================
+function initDashboardCharts() {
+  const growthCanvas = document.getElementById('userGrowthChart');
+  const donutCanvas = document.getElementById('trafficDonutChart');
+
+  let labels = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
+  let counts = [0, 0, 0, 0, 0, 0];
+  let donutData = [1, 1, 1];
+
+  try {
+    if (document.body.dataset.chartLabels) {
+      labels = JSON.parse(document.body.dataset.chartLabels);
+    }
+    if (document.body.dataset.chartCounts) {
+      counts = JSON.parse(document.body.dataset.chartCounts);
+    }
+    if (document.body.dataset.donutCounts) {
+      const parsedDonut = JSON.parse(document.body.dataset.donutCounts);
+      if (parsedDonut.some(v => v > 0)) donutData = parsedDonut;
+    }
+  } catch (e) {
+    console.log("Chart data parse fallback:", e);
+  }
+
+  if (growthCanvas && window.Chart) {
+    new Chart(growthCanvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'New Platform Registrations',
+          data: counts,
+          borderColor: '#1B4D3E',
+          backgroundColor: 'rgba(58, 130, 109, 0.15)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: '#1B4D3E',
+          pointRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        }
+      }
+    });
+  }
+
+  if (donutCanvas && window.Chart) {
+    new Chart(donutCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: ['Bakeshops', 'Market Vendors', 'Others'],
+        datasets: [{
+          data: donutData,
+          backgroundColor: ['#1B4D3E', '#3A826D', '#EBB338'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+}
+
+window.toggleNotifMenu = function() {
+  const menu = document.getElementById('notifDropdown');
+  const adminMenu = document.getElementById('adminDropdown');
+  if (adminMenu) adminMenu.classList.add('hidden');
+  if (menu) menu.classList.toggle('hidden');
+};
+
+window.toggleAdminMenu = function() {
+  const menu = document.getElementById('adminDropdown');
+  const notifMenu = document.getElementById('notifDropdown');
+  if (notifMenu) notifMenu.classList.add('hidden');
+  if (menu) menu.classList.toggle('hidden');
+};
+
+window.toggleMobileNav = function() {
+  const nav = document.getElementById('mainNavbar');
+  if (nav) nav.classList.toggle('hidden');
+};
+
+window.openAdminProfile = function() {
+  const adminMenu = document.getElementById('adminDropdown');
+  if (adminMenu) adminMenu.classList.add('hidden');
+  window.openModal('adminProfileModal');
+};
+
+window.saveAdminProfile = async function() {
+  const emailInput = document.getElementById('adminProfileEmailInput');
+  if (!emailInput) return;
+
+  try {
+    const res = await fetch('/api/accounts/admin/profile/update/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ email: emailInput.value })
+    });
+    if (res.ok) {
+      window.closeModal('adminProfileModal');
+      alert('Admin profile email updated in database!');
+    } else {
+      alert('Failed to update admin email.');
+    }
+  } catch (e) {
+    alert('Network error while saving profile.');
+  }
+};
+
+window.handleLogout = function() {
+  localStorage.removeItem('admin_access_token');
+  localStorage.removeItem('admin_refresh_token');
+  window.location.href = '/login/';
+};
+
+// =========================================================
+// LIVE USER TRANSACTION FETCHER
+// =========================================================
+async function loadLiveUserTransactions(role, accountId, targetTbodyId, colCount = 6) {
+  const tbody = document.getElementById(targetTbodyId);
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-400 text-xs">Loading live records from database...</td></tr>`;
+
+  try {
+    const res = await fetch(`/api/accounts/admin/user-transactions/${role}/${accountId}/`);
+    const data = await res.json();
+    const list = data.transactions || [];
+
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-400 text-xs">No transactions recorded for this ${role.toLowerCase()} yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(tx => {
+      if (colCount === 5) {
+        return `
+          <tr class="hover:bg-gray-50/80">
+            <td class="p-3 font-bold text-gray-700">${tx.id}</td>
+            <td class="p-3 font-bold text-[#1B4D3E]">${tx.establishment}</td>
+            <td class="p-3 text-gray-600">${tx.title} (${tx.amount})</td>
+            <td class="p-3 text-gray-500">${tx.date}</td>
+            <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">${tx.status}</span></td>
+          </tr>
+        `;
+      }
+      return `
+        <tr class="hover:bg-gray-50/80">
+          <td class="p-3 font-bold text-gray-700">${tx.id}</td>
+          <td class="p-3 font-bold text-[#1B4D3E]">${tx.title}</td>
+          <td class="p-3 text-gray-600">${role === 'Consumer' ? tx.establishment : tx.buyer}</td>
+          <td class="p-3 text-gray-500">${tx.date}</td>
+          <td class="p-3 font-bold text-gray-800">${tx.amount}</td>
+          <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">${tx.status}</span></td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-400 text-xs">No transaction records found.</td></tr>`;
+  }
+}
+
+// =========================================================
+// AUTH & MODAL HELPERS
+// =========================================================
 function initAdminLogin() {
   const loginForm = document.getElementById('loginForm');
   if (!loginForm) return;
@@ -125,11 +302,7 @@ window.filterByCalendarRange = function(startDate, endDate) {
     const dateStr = row.getAttribute('data-date');
     if (dateStr) {
       const rowDate = new Date(dateStr);
-      if (rowDate >= startDate && rowDate <= endDate) {
-        row.style.display = '';
-      } else {
-        row.style.display = 'none';
-      }
+      row.style.display = (rowDate >= startDate && rowDate <= endDate) ? '' : 'none';
     }
   });
 };
@@ -207,13 +380,6 @@ function handleLiveSearch(event) {
   });
 }
 
-window.toggleSelectAll = function(masterCheckbox) {
-  const visibleTable = document.querySelector('table.user-role-table:not(.hidden)');
-  if (!visibleTable) return;
-  const checkboxes = visibleTable.querySelectorAll('tbody input[type="checkbox"]');
-  checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
-};
-
 window.switchRoleTab = function(roleName, element) {
   const tabs = document.querySelectorAll('.role-tab-btn');
   tabs.forEach(tab => {
@@ -266,10 +432,11 @@ function updateRoleStats(roleName) {
 }
 
 // =========================================================
-// 1. CONSUMER MODAL
+// 1. CONSUMER MODAL (WITH LIVE TRANSACTIONS)
 // =========================================================
 window.openConsumerModal = function(btn) {
-  document.getElementById('activeConsumerRawId').value = btn.dataset.rawId || '';
+  const rawId = btn.dataset.rawId || '';
+  document.getElementById('activeConsumerRawId').value = rawId;
   document.getElementById('consViewName').textContent = btn.dataset.name || 'Consumer';
   document.getElementById('consViewFullName').textContent = btn.dataset.name || 'Consumer';
   document.getElementById('consViewId').textContent = btn.dataset.id || 'ID';
@@ -283,12 +450,16 @@ window.openConsumerModal = function(btn) {
   if (statusEl) {
     statusEl.textContent = statusStr;
     statusEl.className = statusStr === 'SUSPENDED'
-      ? "bg-rose-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase"
-      : "bg-emerald-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase";
+      ? "bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase"
+      : "bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase";
   }
 
   if (btn.dataset.name) {
     document.getElementById('consInitials').textContent = btn.dataset.name.charAt(0).toUpperCase();
+  }
+
+  if (rawId) {
+    loadLiveUserTransactions('Consumer', rawId, 'consumerTransactionsBody', 6);
   }
 
   window.openModal('consumerViewModal');
@@ -303,10 +474,10 @@ window.setOcrInputsEditable = function(isEditable) {
   inputs.forEach(input => {
     input.readOnly = !isEditable;
     if (isEditable) {
-      input.parentElement.classList.remove('bg-gray-50', 'border-gray-200');
+      input.parentElement.classList.remove('bg-gray-50', 'border-gray-100');
       input.parentElement.classList.add('bg-white', 'border-amber-400', 'ring-2', 'ring-amber-200');
     } else {
-      input.parentElement.classList.add('bg-gray-50', 'border-gray-200');
+      input.parentElement.classList.add('bg-gray-50', 'border-gray-100');
       input.parentElement.classList.remove('bg-white', 'border-amber-400', 'ring-2', 'ring-amber-200');
     }
   });
@@ -370,7 +541,6 @@ window.openPendingModal = function(btn) {
     : (btn.dataset.expiry || '');
   document.getElementById('ocrDetectExpiry').value = detectedExpiry;
 
-  // Reset manual edit mode to locked by default
   window.setOcrInputsEditable(false);
 
   const confidence = ocrData.confidence_score ? `${ocrData.confidence_score}%` : 'Pending/0.0%';
@@ -388,7 +558,7 @@ window.openPendingModal = function(btn) {
 };
 
 // =========================================================
-// 3. MERCHANT VIEW MODAL (ACTIVE / SUSPENDED / EXPIRY CHECK)
+// 3. MERCHANT VIEW MODAL (WITH LIVE TRANSACTIONS & EXPIRY)
 // =========================================================
 window.openActiveModal = function(btn) {
   const merchantId = btn.dataset.id;
@@ -404,11 +574,13 @@ window.openActiveModal = function(btn) {
   document.getElementById('activeBusDate').textContent = btn.dataset.date || 'N/A';
   document.getElementById('activeStatusDate').textContent = btn.dataset.date || 'N/A';
 
-  // Hide transactions table initially when opening modal
   const txSection = document.getElementById('merchantTransactionsSection');
   if (txSection) txSection.classList.add('hidden');
 
-  // Parse OCR Data to show Permit No & LGU
+  if (merchantId) {
+    loadLiveUserTransactions('Merchant', merchantId, 'merchantTransactionsBody', 6);
+  }
+
   let ocrData = {};
   try {
     ocrData = JSON.parse(btn.dataset.ocr || '{}');
@@ -418,7 +590,6 @@ window.openActiveModal = function(btn) {
   document.getElementById('activePermitNo').textContent = ocrData.permit_number || 'Verified on File';
   document.getElementById('activePermitLGU').textContent = ocrData.lgu_anchor || 'Cebu City LGU';
 
-  // Check Permit Expiry (Warn if expiring within 30 days or already expired)
   const expiryStr = btn.dataset.expiry || '';
   document.getElementById('activePermitExpiry').textContent = expiryStr || 'N/A';
   const expiryAlert = document.getElementById('activePermitExpiryAlert');
@@ -447,11 +618,11 @@ window.openActiveModal = function(btn) {
   if (userStatus === 'active') {
     statusBadge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> VERIFIED`;
     statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
-    statusWrapper.className = "bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 shrink-0 shadow-sm";
+    statusWrapper.className = "bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
   } else {
     statusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ${btn.dataset.status}`;
     statusBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
-    statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 shrink-0 shadow-sm";
+    statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
   }
 
   const fileBtn = document.getElementById('activePermitBtn');
@@ -506,6 +677,10 @@ window.openFoodBankModal = function(btn) {
 
   const txSection = document.getElementById('fbTransactionsSection');
   if (txSection) txSection.classList.add('hidden');
+
+  if (fbId) {
+    loadLiveUserTransactions('FoodBank', fbId, 'fbTransactionsBody', 5);
+  }
 
   const statusBadge = document.getElementById('fbStatusBadge');
   const userStatus = (btn.dataset.status || 'Active').toLowerCase();
@@ -796,5 +971,147 @@ window.executeSendNotification = async function() {
     }
   } catch (error) {
     await themeAlert("Network Error", "Could not reach the server.", false);
+  }
+};
+
+// =========================================================
+// 6. FOOD LISTING, DONATION, PAYOUT & ANNOUNCEMENT ACTIONS
+// =========================================================
+
+window.openFoodDetailModal = function(btn) {
+  document.getElementById('currentFoodRawId').value = btn.dataset.rawId || '';
+  document.getElementById('currentFoodRowId').value = `row-${btn.dataset.id}`;
+  document.getElementById('foodModalTitle').textContent = btn.dataset.title || 'Food Item';
+  document.getElementById('foodModalDesc').textContent = btn.dataset.desc || '';
+  document.getElementById('foodModalQty').textContent = btn.dataset.qty || '1';
+  document.getElementById('foodModalOrigPrice').textContent = btn.dataset.orig || '₱0.00';
+  document.getElementById('foodModalDiscPrice').textContent = btn.dataset.disc || '₱0.00';
+  document.getElementById('foodModalDate').textContent = btn.dataset.date || 'N/A';
+  document.getElementById('foodModalExpiry').textContent = btn.dataset.expiry || 'N/A';
+  document.getElementById('foodModalMerchant').textContent = btn.dataset.merchant || 'Merchant';
+  document.getElementById('foodModalAddress').textContent = btn.dataset.address || 'Cebu City';
+  window.openModal('foodModal');
+};
+
+window.flagFoodListingModal = async function() {
+  const rawId = document.getElementById('currentFoodRawId').value;
+  await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({ module: 'listing', action: 'flag', id: rawId })
+  });
+  window.closeModal('foodModal');
+  window.location.reload();
+};
+
+window.removeFoodListingModal = async function() {
+  const rawId = document.getElementById('currentFoodRawId').value;
+  const rowId = document.getElementById('currentFoodRowId').value;
+  window.closeModal('foodModal');
+  await window.removeFoodListing(rawId, rowId);
+};
+
+window.removeFoodListing = async function(rawId, rowId) {
+  if (!confirm("Are you sure you want to remove this food listing from the database?")) return;
+  await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({ module: 'listing', action: 'delete', id: rawId })
+  });
+  const row = document.getElementById(rowId);
+  if (row) row.remove();
+};
+
+window.openDonationPostingModal = function(hubName, produce, vol, date, beneficiaries, addr, rowId, rawId, isFbOrg) {
+  document.getElementById('modalPostingHubTitle').textContent = hubName;
+  document.getElementById('modalProduceType').textContent = produce;
+  document.getElementById('modalIntakeVol').textContent = vol;
+  document.getElementById('modalBeneficiaries').textContent = beneficiaries;
+  document.getElementById('modalHubAddr').textContent = addr;
+  document.getElementById('modalSubDate').textContent = date;
+
+  const approveBtn = document.getElementById('modalApproveReqBtn');
+  if (approveBtn) {
+    approveBtn.onclick = () => {
+      window.closeModal('donationPostingModal');
+      window.handleDonationAction('approve', rawId, rowId, isFbOrg);
+    };
+  }
+  window.openModal('donationPostingModal');
+};
+
+window.openDonationTransactionModal = function(txId, merchant, hub, items, date, courier, status, rawId) {
+  document.getElementById('modalTxId').textContent = txId;
+  document.getElementById('modalTxMerchant').textContent = merchant;
+  document.getElementById('modalTxHub').textContent = hub;
+  document.getElementById('modalTxItems').textContent = items;
+  document.getElementById('modalTxDate').textContent = date;
+  document.getElementById('modalTxStatusBadge').textContent = status;
+
+  const delivBtn = document.getElementById('modalDeliveredBtn');
+  if (delivBtn) {
+    delivBtn.onclick = () => {
+      window.closeModal('donationTxModal');
+      window.handleDonationAction('deliver', rawId, `tx-row-${txId}`, false);
+    };
+  }
+  const flagBtn = document.getElementById('modalFlagTxBtn');
+  if (flagBtn) {
+    flagBtn.onclick = () => {
+      window.closeModal('donationTxModal');
+      window.handleDonationAction('flag', rawId, `tx-row-${txId}`, false);
+    };
+  }
+  window.openModal('donationTxModal');
+};
+
+window.handleDonationAction = async function(action, rawId, rowId, isFbOrg = false) {
+  await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({ module: 'donation', action: action, id: rawId, is_fb_org: isFbOrg })
+  });
+  window.location.reload();
+};
+
+window.handlePayoutAction = async function(action, rawId, rowId, isWallet = true) {
+  if (!confirm(`Confirm ${action} for this payout request?`)) return;
+  await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({ module: 'payout', action: action, id: rawId, is_merchant_wallet: isWallet })
+  });
+  window.location.reload();
+};
+
+window.handleAnnouncementSubmit = async function(e) {
+  e.preventDefault();
+  const audience = document.getElementById('announcementAudience').value;
+  const title = document.getElementById('announcementTitle').value;
+  const body = document.getElementById('announcementBody').value;
+
+  const res = await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({ module: 'announcement', action: 'create', audience, title, body })
+  });
+
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert("Failed to publish broadcast.");
+  }
+};
+
+window.deleteAnnouncement = async function(id) {
+  if (!confirm("Delete this broadcast from the database?")) return;
+  const res = await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({ module: 'announcement', action: 'delete', id: id })
+  });
+  if (res.ok) {
+    const card = document.getElementById(`broadcast-card-${id}`);
+    if (card) card.remove();
   }
 };

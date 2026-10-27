@@ -1,10 +1,11 @@
 from django.urls import path
 from .views import (
     ActivityLogView, AvailableDonationsView, DashboardView, DonationRequestView,
-    DonationRespondView, FoodTypesView, PartnersView,
+    DonationRespondView, FoodBankProfilePortalView, FoodTypesView, PartnersView,
 )
 
 urlpatterns = [
+    path('profile/<str:org_id>/', FoodBankProfilePortalView.as_view(), name='foodbank-profile-portal'),
     path('requests/', DonationRequestView.as_view(), name='donation-requests'),
     path('food-types/', FoodTypesView.as_view(), name='food-types'),
     path('available/', AvailableDonationsView.as_view(), name='available-donations'),

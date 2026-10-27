@@ -1,26 +1,37 @@
-
 from django.contrib import admin
 from django.urls import path, include
-from accounts import views as custom_admin_views
 from django.conf import settings
 from django.conf.urls.static import static
+from accounts import views
 
 urlpatterns = [
-    # Default Django Admin (Moved slightly so it doesn't conflict with your custom dashboard)
-    path('sys-admin/', admin.site.urls), 
-    
-    # API Endpoints
-    path('api/accounts/', include('accounts.urls')),
-    
-    # Teammates' Custom Admin GUI Routes
-    path('', custom_admin_views.login, name='custom-login'),
-    path('dashboard/', custom_admin_views.admin_dashboard, name='custom-dashboard'),
-    path('users/', custom_admin_views.admin_users, name='custom-users'),
-    path('food-listing/', custom_admin_views.admin_food_listing, name='custom-food-listing'),
-    path('donations/', custom_admin_views.admin_donations, name='custom-donations'),
-    path('payouts/', custom_admin_views.admin_payouts, name='custom-payouts'),
-    path('announcements/', custom_admin_views.admin_announcements, name='custom-announcements'),
-]
+    path('admin/', admin.site.urls),
+    path('sys-admin/', admin.site.urls),
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Teammates' Mobile App & Auth APIs (Mapped with and without 'api/' prefix)
+    path('api/listings/', include('listings.urls')),
+    path('listings/', include('listings.urls')),
+    
+    path('api/accounts/', include('accounts.urls')),
+    path('accounts/', include('accounts.urls')),
+    
+    path('api/donations/', include('donations.urls')),
+    path('donations/', include('donations.urls')),
+    
+    path('api/transactions/', include('transactions.urls')),
+    path('transactions/', include('transactions.urls')),
+
+    path('api/auth/', include('dj_rest_auth.urls')),
+    path('api/auth/registration/', include('dj_rest_auth.registration.urls')),
+    path('api/auth/social/', include('allauth.urls')),
+
+    # ReServe Custom Admin Web Portal GUI Routes
+    path('', views.login, name='custom-login'),
+    path('login/', views.login, name='login-alias'),
+    path('dashboard/', views.admin_dashboard, name='custom-dashboard'),
+    path('users/', views.admin_users, name='custom-users'),
+    path('food-listing/', views.admin_food_listing, name='custom-food-listing'),
+    path('donations-view/', views.admin_donations, name='custom-donations'),
+    path('payouts/', views.admin_payouts, name='custom-payouts'),
+    path('announcements/', views.admin_announcements, name='custom-announcements'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
