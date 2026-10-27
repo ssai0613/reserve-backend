@@ -140,9 +140,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('reserve.org.com@gmail.com', '')
-EMAIL_HOST_PASSWORD = os.environ.get('ursw ceix guce widy', '')
-DEFAULT_FROM_EMAIL = f"RESERVE Cebu <{EMAIL_HOST_USER or 'noreply@reserve-cebu.com'}>"
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'reserve.org.com@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'urswceixgucewidy')
+DEFAULT_FROM_EMAIL = f"RESERVE Cebu <{EMAIL_HOST_USER}>"
 
 # Twilio SMS Configuration (Option 3)
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
