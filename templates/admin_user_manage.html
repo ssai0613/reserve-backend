@@ -312,10 +312,11 @@
                   <th class="p-3">Date</th>
                   <th class="p-3">Amount</th>
                   <th class="p-3">Status</th>
+                  <th class="p-3">Actions</th>
                 </tr>
               </thead>
               <tbody id="consumerTransactionsBody" class="divide-y divide-gray-100 font-medium">
-                <tr><td colspan="6" class="p-4 text-center text-gray-400">Loading transaction history...</td></tr>
+                <tr><td colspan="7" class="p-4 text-center text-gray-400">Loading transaction history...</td></tr>
               </tbody>
             </table>
           </div>
@@ -439,8 +440,11 @@
 
             <div class="flex-1 min-w-0 grid grid-cols-2 gap-3 text-xs">
               <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Detected Business Entity</span>
-                <input type="text" id="ocrDetectName" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-900 font-black text-xs mt-0.5 focus:outline-none" readonly>
+                <div class="flex items-center justify-between">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Detected Business Entity</span>
+                  <span id="ocrMatchNameBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full"></span>
+                </div>
+                <input type="text" id="ocrDetectName" oninput="updateOcrMatchIndicators()" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-900 font-black text-xs mt-0.5 focus:outline-none" readonly>
               </div>
               <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Permit Serial No.</span>
@@ -451,8 +455,11 @@
                 <input type="text" id="ocrDetectLGU" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-black text-[11px] mt-0.5 focus:outline-none" readonly>
               </div>
               <div class="col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Registered Address</span>
-                <input type="text" id="ocrDetectAddress" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-700 font-semibold text-[11px] mt-0.5 focus:outline-none" readonly>
+                <div class="flex items-center justify-between">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Registered Address</span>
+                  <span id="ocrMatchAddrBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full"></span>
+                </div>
+                <input type="text" id="ocrDetectAddress" oninput="updateOcrMatchIndicators()" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-700 font-semibold text-[11px] mt-0.5 focus:outline-none" readonly>
               </div>
               <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Nature of Business</span>
@@ -463,8 +470,11 @@
                 <input type="text" id="ocrDetectYear" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-black text-[11px] mt-0.5 focus:outline-none" readonly>
               </div>
               <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Authorized Representative</span>
-                <input type="text" id="ocrDetectRep" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-bold text-[11px] mt-0.5 focus:outline-none" readonly>
+                <div class="flex items-center justify-between">
+                  <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Authorized Representative</span>
+                  <span id="ocrMatchRepBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full"></span>
+                </div>
+                <input type="text" id="ocrDetectRep" oninput="updateOcrMatchIndicators()" class="ocr-editable-input w-full min-w-0 bg-transparent text-gray-800 font-bold text-[11px] mt-0.5 focus:outline-none" readonly>
               </div>
               <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 min-w-0">
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Permit Expiry Date</span>
@@ -919,6 +929,64 @@
         <button onclick="executeSendNotification()" class="bg-[#1B4D3E] text-white font-black text-xs px-6 py-2.5 rounded-xl hover:bg-[#143a2e]">SEND NOTIFICATION</button>
       </div>
       <input type="hidden" id="notifTargetRole">
+    </div>
+  </div>
+
+  <!-- 7. TRANSACTION SUMMARY DETAIL MODAL (FOR CONSUMER & MERCHANT TRANSACTIONS) -->
+  <div id="adminTxSummaryModal" style="z-index: 9995;" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+    <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-lg shadow-2xl border border-gray-100 overflow-hidden">
+      <div class="bg-[#1B4D3E] px-6 py-4 flex justify-between items-center text-white">
+        <div>
+          <h3 id="txSumTitle" class="font-black text-base">Transaction Summary (OID)</h3>
+          <p id="txSumSubtitle" class="text-[10px] text-[#8BC3A3] font-bold uppercase">Official Order &amp; Payment Breakdown</p>
+        </div>
+        <button onclick="closeModal('adminTxSummaryModal')" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center font-black text-sm">✕</button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div class="bg-white p-4 rounded-2xl border border-gray-100 grid grid-cols-2 gap-3">
+          <div>
+            <span class="text-[9px] font-bold text-gray-400 uppercase block">Buyer / Consumer</span>
+            <p class="font-black text-gray-800" id="txSumBuyer">...</p>
+          </div>
+          <div>
+            <span class="text-[9px] font-bold text-gray-400 uppercase block">Establishment</span>
+            <p class="font-black text-[#1B4D3E]" id="txSumMerchant">...</p>
+          </div>
+          <div>
+            <span class="text-[9px] font-bold text-gray-400 uppercase block">Date Ordered</span>
+            <p class="font-semibold text-gray-700" id="txSumDate">...</p>
+          </div>
+          <div>
+            <span class="text-[9px] font-bold text-gray-400 uppercase block">Pickup Deadline</span>
+            <p class="font-bold text-rose-600" id="txSumDeadline">...</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-gray-100 space-y-2">
+          <h4 class="font-black text-[#1B4D3E] text-xs uppercase tracking-wider border-b pb-1.5">Ordered Food Items</h4>
+          <div id="txSumItemsList" class="space-y-1.5"></div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-gray-100 space-y-1.5">
+          <div class="flex justify-between">
+            <span class="text-gray-500 font-bold">Total Order Value:</span>
+            <strong class="text-gray-900" id="txSumTotal">₱0.00</strong>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500 font-bold">10% Online Deposit Paid:</span>
+            <strong class="text-emerald-700" id="txSumDeposit">₱0.00</strong>
+          </div>
+          <div class="flex justify-between border-t pt-1.5">
+            <span class="text-gray-700 font-black">90% Cash at Store Pickup:</span>
+            <strong class="text-[#1B4D3E] text-sm" id="txSumRemaining">₱0.00</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-white border-t border-gray-100 flex justify-end">
+        <button onclick="closeModal('adminTxSummaryModal')" class="bg-[#1B4D3E] text-white font-black text-xs px-7 py-2.5 rounded-xl">Close Summary</button>
+      </div>
     </div>
   </div>
 {% endblock %}

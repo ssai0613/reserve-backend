@@ -26,9 +26,10 @@ class UserNotification(models.Model):
 
 class AdminNotification(models.Model):
     admin_notif_id = models.AutoField(primary_key=True)
-    admin_notif_type = models.CharField(max_length=100)  # KYB, Payout, System
+    admin_notif_type = models.CharField(max_length=100)  # KYB, Payout, System, Support, Weather, Reservation, Review
     message = models.TextField()
     is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, db_column='user_id', related_name='admin_notifications')
     merchant = models.ForeignKey('accounts.Merchant', on_delete=models.SET_NULL, null=True, blank=True, db_column='merch_id', related_name='admin_notifications')
     withdrawal = models.ForeignKey('transactions.WithdrawalReq', on_delete=models.SET_NULL, null=True, blank=True, db_column='withdrawal_id', related_name='admin_notifications')

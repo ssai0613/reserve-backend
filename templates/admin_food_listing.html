@@ -3,9 +3,16 @@
 {% block title %}ReServe Admin - Food Listing{% endblock %}
 
 {% block content %}
-  <div>
-    <h2 class="text-2xl font-black text-[#1B4D3E] tracking-tight">Food Listing Control</h2>
-    <p class="text-xs font-semibold text-gray-400">Monitor active produce listings, discounts, and TTT shelf-life status</p>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-2xl font-black text-[#1B4D3E] tracking-tight">Food Listing &amp; Merchant Directory</h2>
+      <p class="text-xs font-semibold text-gray-400">Monitor active produce listings, expiry windows, and partner merchant storefronts</p>
+    </div>
+    {% if selected_merch_id %}
+      <a href="/food-listing/" class="bg-[#1B4D3E] text-white text-xs font-black px-4 py-2 rounded-xl shadow-sm hover:bg-[#143a2e]">
+        ✕ Clear Merchant Filter (Showing MID-{{ selected_merch_id }})
+      </a>
+    {% endif %}
   </div>
 
   <!-- Live Metric Cards -->
@@ -19,11 +26,11 @@
       <h3 class="text-3xl font-black text-[#1B4D3E] mt-1">{{ active_stores_count }}</h3>
     </div>
     <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
-      <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Claimed Produce</p>
+      <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Completed Pickups</p>
       <h3 class="text-3xl font-black text-[#3A826D] mt-1">{{ claimed_produce_count }}</h3>
     </div>
     <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
-      <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Flagged For Review</p>
+      <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Flagged / Expired</p>
       <h3 id="flaggedCountBadge" class="text-3xl font-black text-rose-600 mt-1">{{ flagged_listings_count }}</h3>
     </div>
   </div>
@@ -42,8 +49,8 @@
         <option value="">Sort Criteria...</option>
         <option value="name-asc">Item Name (A-Z)</option>
         <option value="name-desc">Item Name (Z-A)</option>
-        <option value="date-desc">Listing Date (Newest)</option>
-        <option value="date-asc">Listing Date (Oldest)</option>
+        <option value="date-desc">Expiry Date (Newest)</option>
+        <option value="date-asc">Expiry Date (Oldest)</option>
       </select>
 
       <div class="relative flex-1">
@@ -53,35 +60,62 @@
     </div>
   </div>
 
-  <!-- Live Listings Table -->
+  <!-- Category Bucket Tabs: All vs Active vs Flagged/Expired -->
+  <div class="flex gap-2 border-b border-gray-200 pb-1 overflow-x-auto">
+    <button onclick="filterListingsByBucket('all', this)" class="listing-bucket-tab px-5 py-2.5 text-xs font-black rounded-2xl bg-white text-[#1B4D3E] shadow-sm border-b-2 border-[#1B4D3E]">
+      All Listings ({{ listings|length }})
+    </button>
+    <button onclick="filterListingsByBucket('active', this)" class="listing-bucket-tab px-5 py-2.5 text-xs font-bold rounded-2xl text-gray-500 hover:text-[#1B4D3E]">
+      Active Listings ({{ active_listings_count }})
+    </button>
+    <button onclick="filterListingsByBucket('flagged_expired', this)" class="listing-bucket-tab px-5 py-2.5 text-xs font-bold rounded-2xl text-gray-500 hover:text-rose-600">
+      Flagged &amp; Expired ({{ flagged_listings_count }})
+    </button>
+  </div>
+
+  <!-- Live Listings Table (With Food Photo Column) -->
   <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
-    <table class="user-role-table w-full text-left text-xs min-w-[600px]">
+    <table class="user-role-table w-full text-left text-xs min-w-[740px]">
       <thead class="bg-[#1B4D3E] text-white font-bold uppercase tracking-wider text-[10px]">
         <tr>
-          <th class="p-3.5"><input type="checkbox" onclick="toggleSelectAll(this)"></th>
-          <th class="p-3.5">Food Item</th>
+          <th class="p-3.5">ID</th>
+          <th class="p-3.5">Food Item &amp; Photo</th>
           <th class="p-3.5">Establishment</th>
-          <th class="p-3.5">Listing Date</th>
+          <th class="p-3.5">Price (Orig → Now)</th>
           <th class="p-3.5">Quantity</th>
-          <th class="p-3.5">Category</th>
+          <th class="p-3.5">Expiry Date &amp; Time</th>
           <th class="p-3.5">Status</th>
           <th class="p-3.5">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100 font-medium">
         {% for item in listings %}
-        <tr id="row-{{ item.id }}" class="hover:bg-gray-50/80" data-date="{{ item.date }}" data-search="{{ item.id|lower }} {{ item.title|lower }} {{ item.establishment|lower }} {{ item.category|lower }}" data-status="{{ item.status|lower }}">
-          <td class="p-3.5"><input type="checkbox"></td>
+        <tr id="row-{{ item.id }}"
+            class="hover:bg-gray-50/80 listing-row"
+            data-bucket="{{ item.bucket }}"
+            data-date="{{ item.date }}"
+            data-search="{{ item.id|lower }} {{ item.title|lower }} {{ item.establishment|lower }} {{ item.category|lower }}"
+            data-status="{{ item.status|lower }}">
+          <td class="p-3.5 font-bold text-gray-600">{{ item.id }}</td>
           <td class="p-3.5">
-            <div class="flex items-center gap-2">
-              <i data-lucide="flag" class="listing-flag-icon w-3.5 h-3.5 {% if 'flag' in item.status|lower %}text-rose-500{% else %}text-gray-300{% endif %} transition-colors"></i>
-              <span class="font-bold text-[#1B4D3E]">{{ item.title }}</span>
+            <div class="flex items-center gap-3">
+              <img src="{{ item.image_url|default:'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=200&q=80' }}"
+                   alt="{{ item.title }}"
+                   onerror="this.src='https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=200&q=80'"
+                   class="w-11 h-11 rounded-xl object-cover border border-gray-200 shrink-0 bg-gray-100">
+              <div>
+                <span class="font-bold text-[#1B4D3E] block">{{ item.title }}</span>
+                <span class="text-[10px] text-gray-400">{{ item.category }}</span>
+              </div>
             </div>
           </td>
-          <td class="p-3.5 text-gray-700 font-semibold">{{ item.establishment }}</td>
-          <td class="p-3.5 text-gray-500">{{ item.date }}</td>
+          <td class="p-3.5 text-gray-700 font-bold">{{ item.establishment }}</td>
+          <td class="p-3.5">
+            <span class="text-gray-400 line-through text-[10px] mr-1">{{ item.orig_price }}</span>
+            <span class="font-black text-[#1B4D3E]">{{ item.disc_price }}</span>
+          </td>
           <td class="p-3.5 font-black">{{ item.quantity }}</td>
-          <td class="p-3.5"><span class="bg-gray-100 px-2.5 py-0.5 rounded-full font-bold text-gray-700 text-[10px]">{{ item.category }}</span></td>
+          <td class="p-3.5 text-gray-700 font-semibold">{{ item.expiry }}</td>
           <td class="p-3.5 status-cell">
             {% if 'flag' in item.status|lower %}
               <span class="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">{{ item.status }}</span>
@@ -103,9 +137,10 @@
                     data-disc="{{ item.disc_price }}"
                     data-date="{{ item.date }}"
                     data-expiry="{{ item.expiry }}"
+                    data-temp="{{ item.temperature }}"
                     data-merchant="{{ item.establishment }}"
                     data-address="{{ item.address }}"
-                    data-img="{{ item.image_url }}"
+                    data-img="{{ item.image_url|default:'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80' }}"
                     class="text-[#1B4D3E] hover:scale-125 transition-transform">
               <i data-lucide="eye" class="w-4 h-4"></i>
             </button>
@@ -123,9 +158,78 @@
     </table>
   </div>
 
-  <!-- FOOD LISTING VIEW MODAL -->
+  <!-- PARTNER MERCHANT PROFILES DIRECTORY (AT BOTTOM + EXPANDABLE VIA SEE ALL) -->
+  <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-black text-[#1B4D3E] uppercase tracking-wider">Partner Merchant Profiles</h3>
+        <p class="text-[11px] text-gray-400 font-semibold">Click any merchant profile card to inspect their store details, ratings, food listings, and transaction history</p>
+      </div>
+      {% if merchant_profiles|length > 4 %}
+      <button type="button" id="toggleAllMerchantsBtn" onclick="toggleSeeAllMerchants()" class="bg-[#E7F1EC] hover:bg-[#1B4D3E] text-[#1B4D3E] hover:text-white font-black text-xs px-4 py-2 rounded-xl transition-all">
+        See All ({{ merchant_profiles|length }})
+      </button>
+      {% endif %}
+    </div>
+
+    <div id="merchantProfilesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {% for mp in merchant_profiles %}
+      <div id="merchant-profile-card-{{ mp.merch_id }}"
+           onclick="openMerchantDirectoryProfile(this)"
+           data-id="{{ mp.merch_id }}"
+           data-id-label="{{ mp.id_label }}"
+           data-name="{{ mp.bus_name }}"
+           data-type="{{ mp.merch_type }}"
+           data-address="{{ mp.address }}"
+           data-contact="{{ mp.contact_person }}"
+           data-phone="{{ mp.phone }}"
+           data-hotline="{{ mp.hotline }}"
+           data-email="{{ mp.email }}"
+           data-status="{{ mp.status }}"
+           data-plan="{{ mp.plan_name }}"
+           data-wallet="{{ mp.wallet_bal }}"
+           data-expiry="{{ mp.expiry_date }}"
+           data-permit="{{ mp.permit_url }}"
+           data-active="{{ mp.active_count }}"
+           data-flagged="{{ mp.flagged_expired_count }}"
+           data-rating="{{ mp.avg_rating }}"
+           data-reviews="{{ mp.review_count }}"
+           data-items="{{ mp.items_json }}"
+           class="merchant-dir-card {% if forloop.counter > 4 %}hidden extra-merchant-card{% endif %} cursor-pointer group bg-[#F8FAF9] hover:bg-[#E7F1EC] border border-gray-200/80 hover:border-[#3A826D] rounded-2xl p-4 transition-all shadow-xs flex flex-col justify-between gap-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-[#1B4D3E] text-white flex items-center justify-center font-black text-sm shrink-0">
+              {{ mp.bus_name|slice:":1"|upper }}
+            </div>
+            <div class="min-w-0">
+              <h4 class="font-black text-[#1B4D3E] text-xs truncate group-hover:underline">{{ mp.bus_name }}</h4>
+              <p class="text-[10px] font-bold text-gray-500">{{ mp.merch_type }} • {{ mp.id_label }}</p>
+              <p class="text-[10px] font-bold text-amber-600 mt-0.5">★ {{ mp.avg_rating }} ({{ mp.review_count }} reviews)</p>
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase {% if mp.status == 'Active' %}bg-emerald-100 text-emerald-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+            {{ mp.status }}
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-gray-200/60 text-[10px] font-bold">
+          <span class="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+            {{ mp.active_count }} Active Listing{{ mp.active_count|pluralize }}
+          </span>
+          <span class="text-gray-500">
+            {{ mp.flagged_expired_count }} Flagged/Exp
+          </span>
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-xs text-gray-400 col-span-full py-2">No merchants registered yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 1. FOOD LISTING DETAIL MODAL (WITH REAL PHOTO) -->
   <div id="foodModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-    <div class="bg-white rounded-[32px] w-full max-w-[540px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+    <div class="bg-white rounded-[32px] w-full max-w-[560px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
       <div class="bg-[#D2E7DD] px-6 py-4 rounded-t-[32px] flex justify-between items-center">
         <h3 id="foodModalTitle" class="font-black text-[#1B4D3E] text-lg tracking-tight">Food Item</h3>
         <button onclick="toggleModal('foodModal')" class="w-8 h-8 rounded-full bg-white/70 hover:bg-white text-[#1B4D3E] flex items-center justify-center font-black text-sm shadow-sm">✕</button>
@@ -133,11 +237,8 @@
 
       <div class="p-6 space-y-5">
         <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 items-start">
-          <div class="sm:col-span-5 w-full h-48 rounded-2xl overflow-hidden shadow-inner border border-gray-100 bg-amber-50 relative flex items-center justify-center">
-            <div class="w-full h-full bg-gradient-to-br from-[#1B4D3E] to-[#3A826D] flex flex-col items-center justify-center text-white p-3 text-center">
-              <i data-lucide="utensils" class="w-12 h-12 mb-2 opacity-90"></i>
-              <span class="text-xs font-black uppercase tracking-wider">Surplus Listing</span>
-            </div>
+          <div class="sm:col-span-5 w-full h-44 rounded-2xl overflow-hidden shadow-inner border border-gray-100 bg-gray-100 relative flex items-center justify-center">
+            <img id="foodModalImg" src="https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" alt="Food Photo" class="w-full h-full object-cover">
           </div>
 
           <div class="sm:col-span-7 space-y-2 text-xs">
@@ -146,15 +247,16 @@
               <p id="foodModalDesc" class="text-[11px] text-gray-500 leading-relaxed font-normal mt-1">...</p>
             </div>
             <div class="pt-2 space-y-1 font-semibold text-gray-900 text-xs">
-              <p><strong>Quantity:</strong> <span id="foodModalQty" class="font-normal text-gray-700">...</span></p>
+              <p><strong>Quantity Available:</strong> <span id="foodModalQty" class="font-normal text-gray-700">...</span></p>
               <p><strong>Original Price:</strong> <span id="foodModalOrigPrice" class="font-normal text-gray-500 line-through">...</span></p>
               <p><strong>Discounted Price:</strong> <span id="foodModalDiscPrice" class="font-bold text-[#1B4D3E]">...</span></p>
-              <p><strong>Listing Date:</strong> <span id="foodModalDate" class="font-normal text-gray-700">...</span></p>
+              <p><strong>Date Posted:</strong> <span id="foodModalDate" class="font-normal text-gray-600">...</span></p>
+              <p><strong>Expiry Date &amp; Time:</strong> <span id="foodModalExpiry" class="font-black text-rose-600">...</span></p>
             </div>
           </div>
         </div>
 
-        <div class="bg-[#8BC3A3] p-3 rounded-2xl flex justify-between items-center shadow-sm">
+        <div class="bg-[#8BC3A3] p-3.5 rounded-2xl flex justify-between items-center shadow-sm">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-white/70 flex items-center justify-center text-[#1B4D3E]">
               <i data-lucide="store" class="w-5 h-5"></i>
@@ -164,25 +266,11 @@
               <p id="foodModalAddress" class="text-[10px] text-gray-800 font-medium">...</p>
             </div>
           </div>
-          <a href="/users/" class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#1B4D3E] hover:scale-110 shadow-sm transition-all">
-            <i data-lucide="arrow-right" class="w-4 h-4"></i>
-          </a>
-        </div>
-
-        <div class="flex items-center gap-4 pt-1">
-          <div class="w-20 h-20 rounded-full bg-[#D2E7DD] border-2 border-emerald-200 flex flex-col items-center justify-center shrink-0 shadow-sm text-center p-1">
-            <span class="text-[10px] font-black text-[#1B4D3E] uppercase">TTT Safe</span>
-            <span class="text-[8px] font-bold text-gray-600 mt-0.5">Verified</span>
-          </div>
-          <div class="text-xs space-y-1">
-            <h5 class="font-black text-gray-900 text-xs">Shelf-Life & Edibility Window</h5>
-            <p class="text-[11px] text-gray-500">Estimated edibility / pickup until: <strong id="foodModalExpiry">...</strong></p>
-          </div>
         </div>
 
         <div class="pt-2 flex justify-center items-center gap-3">
           <button onclick="flagFoodListingModal()" class="bg-[#F6C6BA] hover:bg-[#ebaba0] text-gray-900 font-bold text-xs px-6 py-2.5 rounded-xl border border-gray-300 shadow-sm transition-all">
-            Flag Food
+            Flag Food Listing
           </button>
           <button onclick="removeFoodListingModal()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm transition-all">
             Remove Listing
@@ -191,6 +279,98 @@
       </div>
       <input type="hidden" id="currentFoodRawId">
       <input type="hidden" id="currentFoodRowId">
+    </div>
+  </div>
+
+  <!-- 2. CLICKABLE MERCHANT FULL PROFILE, LISTINGS (WITH PHOTOS) & HISTORY MODAL -->
+  <div id="merchantDirectoryProfileModal" class="modal-overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+    <div class="bg-[#F0F5F2] rounded-[32px] w-full max-w-[920px] max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col justify-between relative">
+      <div class="bg-[#1B4D3E] px-6 py-4 rounded-t-[32px] flex justify-between items-center text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center font-black text-lg" id="mpModalInitial">M</div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="mpModalName" class="font-black text-base tracking-tight">Merchant Name</h3>
+              <span id="mpModalRatingBadge" class="bg-amber-400 text-gray-900 text-[10px] font-black px-2.5 py-0.5 rounded-full">★ 5.0 (0)</span>
+            </div>
+            <p class="text-[10px] text-[#8BC3A3] font-bold uppercase" id="mpModalSub">MID-1 • Bakeshop</p>
+          </div>
+        </div>
+        <button onclick="closeModal('merchantDirectoryProfileModal')" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center font-black text-sm">✕</button>
+      </div>
+
+      <div class="p-6 space-y-5 text-xs">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-1.5">
+            <span class="text-[9px] font-black uppercase text-gray-400">Contact &amp; Location</span>
+            <p class="font-bold text-gray-800" id="mpModalContact">...</p>
+            <p class="text-gray-600" id="mpModalPhone">...</p>
+            <p class="text-blue-600 font-bold" id="mpModalEmail">...</p>
+            <p class="text-gray-500 text-[11px]" id="mpModalAddress">...</p>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-1.5">
+            <span class="text-[9px] font-black uppercase text-gray-400">Storefront &amp; Wallet</span>
+            <p class="font-bold text-[#1B4D3E]">Wallet Balance: <span id="mpModalWallet">₱0.00</span></p>
+            <p class="text-gray-600">Subscription Plan: <strong id="mpModalPlan">Basic</strong></p>
+            <p class="text-gray-600">Permit Expiry: <strong id="mpModalExpiry">YYYY-MM-DD</strong></p>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between">
+            <div>
+              <span class="text-[9px] font-black uppercase text-gray-400">Listing Summary</span>
+              <p class="font-black text-emerald-700 text-sm mt-1"><span id="mpModalActiveCount">0</span> Active Listings</p>
+              <p class="font-bold text-rose-600 text-xs"><span id="mpModalFlaggedCount">0</span> Flagged / Expired</p>
+            </div>
+            <button id="mpFilterPageBtn" class="mt-2 bg-[#3A826D] hover:bg-[#1B4D3E] text-white font-black text-[10px] py-2 px-3 rounded-xl">
+              Filter Table by This Merchant
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs space-y-3">
+          <h4 class="font-black text-[#1B4D3E] text-sm">Merchant Food Listings (Active &amp; Flagged/Expired)</h4>
+          <div class="overflow-x-auto rounded-xl border border-gray-100">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#1B4D3E] text-white text-[10px] font-bold uppercase">
+                <tr>
+                  <th class="p-2.5">ID</th>
+                  <th class="p-2.5">Food Item &amp; Photo</th>
+                  <th class="p-2.5">Price</th>
+                  <th class="p-2.5">Qty</th>
+                  <th class="p-2.5">Expiry Date &amp; Time</th>
+                  <th class="p-2.5">Status</th>
+                </tr>
+              </thead>
+              <tbody id="mpModalListingsBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs space-y-3">
+          <h4 class="font-black text-[#1B4D3E] text-sm">Order &amp; Transaction History</h4>
+          <div class="overflow-x-auto rounded-xl border border-gray-100">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#1B4D3E] text-white text-[10px] font-bold uppercase">
+                <tr>
+                  <th class="p-2.5">Order ID</th>
+                  <th class="p-2.5">Item</th>
+                  <th class="p-2.5">Buyer</th>
+                  <th class="p-2.5">Date</th>
+                  <th class="p-2.5">Amount</th>
+                  <th class="p-2.5">Status</th>
+                  <th class="p-2.5">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="mpModalTransactionsBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-white rounded-b-[32px] border-t border-gray-100 flex justify-end">
+        <button onclick="closeModal('merchantDirectoryProfileModal')" class="bg-[#1B4D3E] text-white font-black text-xs px-8 py-2.5 rounded-xl">
+          Close Profile
+        </button>
+      </div>
     </div>
   </div>
 {% endblock %}

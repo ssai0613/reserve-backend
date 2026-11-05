@@ -117,79 +117,11 @@ window.openAdminProfile = function() {
   window.openModal('adminProfileModal');
 };
 
-window.saveAdminProfile = async function() {
-  const emailInput = document.getElementById('adminProfileEmailInput');
-  if (!emailInput) return;
-
-  try {
-    const res = await fetch('/api/accounts/admin/profile/update/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-      body: JSON.stringify({ email: emailInput.value })
-    });
-    if (res.ok) {
-      window.closeModal('adminProfileModal');
-      alert('Admin profile email updated in database!');
-    } else {
-      alert('Failed to update admin email.');
-    }
-  } catch (e) {
-    alert('Network error while saving profile.');
-  }
-};
-
-window.handleLogout = function() {
-  localStorage.removeItem('admin_access_token');
-  localStorage.removeItem('admin_refresh_token');
-  window.location.href = '/login/';
-};
 
 // =========================================================
 // LIVE USER TRANSACTION FETCHER
 // =========================================================
-async function loadLiveUserTransactions(role, accountId, targetTbodyId, colCount = 6) {
-  const tbody = document.getElementById(targetTbodyId);
-  if (!tbody) return;
 
-  tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-400 text-xs">Loading live records from database...</td></tr>`;
-
-  try {
-    const res = await fetch(`/api/accounts/admin/user-transactions/${role}/${accountId}/`);
-    const data = await res.json();
-    const list = data.transactions || [];
-
-    if (list.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-400 text-xs">No transactions recorded for this ${role.toLowerCase()} yet.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = list.map(tx => {
-      if (colCount === 5) {
-        return `
-          <tr class="hover:bg-gray-50/80">
-            <td class="p-3 font-bold text-gray-700">${tx.id}</td>
-            <td class="p-3 font-bold text-[#1B4D3E]">${tx.establishment}</td>
-            <td class="p-3 text-gray-600">${tx.title} (${tx.amount})</td>
-            <td class="p-3 text-gray-500">${tx.date}</td>
-            <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">${tx.status}</span></td>
-          </tr>
-        `;
-      }
-      return `
-        <tr class="hover:bg-gray-50/80">
-          <td class="p-3 font-bold text-gray-700">${tx.id}</td>
-          <td class="p-3 font-bold text-[#1B4D3E]">${tx.title}</td>
-          <td class="p-3 text-gray-600">${role === 'Consumer' ? tx.establishment : tx.buyer}</td>
-          <td class="p-3 text-gray-500">${tx.date}</td>
-          <td class="p-3 font-bold text-gray-800">${tx.amount}</td>
-          <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">${tx.status}</span></td>
-        </tr>
-      `;
-    }).join('');
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-400 text-xs">No transaction records found.</td></tr>`;
-  }
-}
 
 // =========================================================
 // AUTH & MODAL HELPERS
@@ -499,146 +431,10 @@ window.toggleOcrManualEdit = function() {
   }
 };
 
-window.openPendingModal = function(btn) {
-  const merchantId = btn.dataset.id;
-  const businessName = btn.dataset.name || 'Merchant';
-
-  document.getElementById('pendingModalTitle').textContent = businessName;
-  document.getElementById('pendingBusName').textContent = businessName;
-  document.getElementById('pendingMerchType').textContent = btn.dataset.type || 'Standard';
-  document.getElementById('pendingAddress').textContent = btn.dataset.address || 'Not Provided';
-  document.getElementById('pendingContact').textContent = btn.dataset.contact || 'Not Provided';
-  document.getElementById('pendingPhone').textContent = btn.dataset.phone || 'Not Provided';
-  document.getElementById('pendingHotline').textContent = btn.dataset.hotline || 'N/A';
-  document.getElementById('pendingEmail').textContent = btn.dataset.email || 'N/A';
-  document.getElementById('pendingDate').textContent = btn.dataset.date || 'N/A';
-  document.getElementById('pendingMerchantId').value = merchantId;
-
-  const fileBtn = document.getElementById('pendingPermitBtn');
-  if (fileBtn) {
-    fileBtn.onclick = () => window.open(btn.dataset.permit || '', '_blank');
-  }
-
-  let ocrData = {};
-  try {
-    ocrData = JSON.parse(btn.dataset.ocr || '{}');
-  } catch (e) {
-    ocrData = {};
-  }
-
-  document.getElementById('ocrDetectName').value = ocrData.business_name || 'Not Detected';
-  document.getElementById('ocrDetectPermitNo').value = ocrData.permit_number || 'Not Detected';
-  document.getElementById('ocrDetectLGU').value = ocrData.lgu_anchor || 'Unverified';
-  document.getElementById('ocrDetectAddress').value = ocrData.business_address || 'Not Detected';
-  document.getElementById('ocrDetectNature').value = ocrData.nature_of_business || 'Not Detected';
-  document.getElementById('ocrDetectYear').value = ocrData.calendar_year ? `Year ${ocrData.calendar_year}` : 'Not Detected';
-  
-  const repText = [ocrData.representative, ocrData.ownership_type].filter(Boolean).join(' • ');
-  document.getElementById('ocrDetectRep').value = repText || ocrData.taxpayer_name || 'Not Detected';
-
-  const detectedExpiry = (ocrData.expiry_date && ocrData.expiry_date !== 'Not Detected')
-    ? ocrData.expiry_date
-    : (btn.dataset.expiry || '');
-  document.getElementById('ocrDetectExpiry').value = detectedExpiry;
-
-  window.setOcrInputsEditable(false);
-
-  const confidence = ocrData.confidence_score ? `${ocrData.confidence_score}%` : 'Pending/0.0%';
-  const confidenceEl = document.getElementById('ocrConfidenceScore');
-  if (confidenceEl) {
-    confidenceEl.textContent = `Confidence: ${confidence}`;
-    if (parseFloat(ocrData.confidence_score || 0) >= 85) {
-      confidenceEl.className = "bg-emerald-50 text-emerald-800 font-black text-[10px] px-3 py-1 rounded-full border border-emerald-200";
-    } else {
-      confidenceEl.className = "bg-amber-50 text-amber-800 font-black text-[10px] px-3 py-1 rounded-full border border-amber-200";
-    }
-  }
-
-  window.openModal('merchantPendingModal');
-};
 
 // =========================================================
 // 3. MERCHANT VIEW MODAL (WITH LIVE TRANSACTIONS & EXPIRY)
 // =========================================================
-window.openActiveModal = function(btn) {
-  const merchantId = btn.dataset.id;
-  document.getElementById('activeMerchantId').value = merchantId;
-  document.getElementById('activeModalTitle').textContent = btn.dataset.name || 'Merchant';
-  document.getElementById('activeBusName').textContent = btn.dataset.name || 'N/A';
-  document.getElementById('activeMerchType').textContent = btn.dataset.type || 'N/A';
-  document.getElementById('activeBusAddress').textContent = btn.dataset.address || 'Not Provided';
-  document.getElementById('activeContactPerson').textContent = btn.dataset.contact || 'Not Provided';
-  document.getElementById('activeContactPhone').textContent = btn.dataset.phone || 'Not Provided';
-  document.getElementById('activeHotline').textContent = btn.dataset.hotline || 'N/A';
-  document.getElementById('activeBusEmail').textContent = btn.dataset.email || 'N/A';
-  document.getElementById('activeBusDate').textContent = btn.dataset.date || 'N/A';
-  document.getElementById('activeStatusDate').textContent = btn.dataset.date || 'N/A';
-
-  const txSection = document.getElementById('merchantTransactionsSection');
-  if (txSection) txSection.classList.add('hidden');
-
-  if (merchantId) {
-    loadLiveUserTransactions('Merchant', merchantId, 'merchantTransactionsBody', 6);
-  }
-
-  let ocrData = {};
-  try {
-    ocrData = JSON.parse(btn.dataset.ocr || '{}');
-  } catch (e) {
-    ocrData = {};
-  }
-  document.getElementById('activePermitNo').textContent = ocrData.permit_number || 'Verified on File';
-  document.getElementById('activePermitLGU').textContent = ocrData.lgu_anchor || 'Cebu City LGU';
-
-  const expiryStr = btn.dataset.expiry || '';
-  document.getElementById('activePermitExpiry').textContent = expiryStr || 'N/A';
-  const expiryAlert = document.getElementById('activePermitExpiryAlert');
-  const expiryAlertText = document.getElementById('activePermitExpiryAlertText');
-
-  if (expiryStr && expiryAlert) {
-    const today = new Date();
-    const expiryDate = new Date(expiryStr);
-    const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      expiryAlert.classList.remove('hidden');
-      expiryAlertText.textContent = `Business Permit EXPIRED on ${expiryStr} (${Math.abs(diffDays)} days ago). Request renewal immediately.`;
-    } else if (diffDays <= 30) {
-      expiryAlert.classList.remove('hidden');
-      expiryAlertText.textContent = `Business Permit expires in ${diffDays} days (${expiryStr}). Notify merchant to submit renewed permit.`;
-    } else {
-      expiryAlert.classList.add('hidden');
-    }
-  }
-
-  const statusBadge = document.getElementById('activeStatusBadge');
-  const statusWrapper = document.getElementById('activeStatusWrapper');
-  const userStatus = (btn.dataset.status || 'Active').toLowerCase();
-
-  if (userStatus === 'active') {
-    statusBadge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> VERIFIED`;
-    statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
-    statusWrapper.className = "bg-[#A2C9B6] px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
-  } else {
-    statusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ${btn.dataset.status}`;
-    statusBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1";
-    statusWrapper.className = "bg-rose-100 px-4 py-2.5 rounded-2xl flex items-center gap-3 w-full md:w-auto shadow-sm";
-  }
-
-  const fileBtn = document.getElementById('activePermitBtn');
-  if (fileBtn) {
-    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
-  }
-
-  const visitBtn = document.getElementById('activeVisitProfileBtn');
-  if (visitBtn) {
-    visitBtn.onclick = () => {
-      window.location.href = `/food-listing/?merchant=MID-${merchantId}`;
-    };
-  }
-
-  window.openModal('merchantActiveModal');
-};
 
 // =========================================================
 // 4. FOOD BANK PENDING & ACTIVE MODALS
@@ -663,50 +459,6 @@ window.openFoodBankPendingModal = function(btn) {
   window.openModal('foodBankPendingModal');
 };
 
-window.openFoodBankModal = function(btn) {
-  const fbId = btn.dataset.id;
-  document.getElementById('activeFoodBankId').value = fbId;
-  document.getElementById('fbViewName').textContent = btn.dataset.name || 'Organization';
-  document.getElementById('fbViewAddress').textContent = btn.dataset.address || 'Not Provided';
-  document.getElementById('fbViewContact').textContent = btn.dataset.contact || 'Not Provided';
-  document.getElementById('fbViewPhone').textContent = btn.dataset.phone || 'Not Provided';
-  document.getElementById('fbViewHotline').textContent = btn.dataset.hotline || 'N/A';
-  document.getElementById('fbViewEmail').textContent = btn.dataset.email || 'N/A';
-  document.getElementById('fbViewDate').textContent = btn.dataset.date || 'N/A';
-  document.getElementById('fbViewExpiry').textContent = btn.dataset.expiry || 'N/A';
-
-  const txSection = document.getElementById('fbTransactionsSection');
-  if (txSection) txSection.classList.add('hidden');
-
-  if (fbId) {
-    loadLiveUserTransactions('FoodBank', fbId, 'fbTransactionsBody', 5);
-  }
-
-  const statusBadge = document.getElementById('fbStatusBadge');
-  const userStatus = (btn.dataset.status || 'Active').toLowerCase();
-  
-  if (userStatus === 'active') {
-    statusBadge.textContent = "VERIFIED NGO";
-    statusBadge.className = "bg-[#3A826D] text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
-  } else {
-    statusBadge.textContent = btn.dataset.status.toUpperCase();
-    statusBadge.className = "bg-rose-500 text-white px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase";
-  }
-
-  const fileBtn = document.getElementById('fbPermitBtn');
-  if (fileBtn) {
-    fileBtn.onclick = () => window.open(btn.dataset.permit, '_blank');
-  }
-
-  const visitBtn = document.getElementById('fbVisitProfileBtn');
-  if (visitBtn) {
-    visitBtn.onclick = () => {
-      window.location.href = `/donations/?foodbank=FB-${fbId}`;
-    };
-  }
-
-  window.openModal('foodBankViewModal');
-};
 
 // =========================================================
 // 5. COMPLIANCE API ACTIONS (APPROVE, REJECT, SUSPEND, NOTIFY)
@@ -978,20 +730,6 @@ window.executeSendNotification = async function() {
 // 6. FOOD LISTING, DONATION, PAYOUT & ANNOUNCEMENT ACTIONS
 // =========================================================
 
-window.openFoodDetailModal = function(btn) {
-  document.getElementById('currentFoodRawId').value = btn.dataset.rawId || '';
-  document.getElementById('currentFoodRowId').value = `row-${btn.dataset.id}`;
-  document.getElementById('foodModalTitle').textContent = btn.dataset.title || 'Food Item';
-  document.getElementById('foodModalDesc').textContent = btn.dataset.desc || '';
-  document.getElementById('foodModalQty').textContent = btn.dataset.qty || '1';
-  document.getElementById('foodModalOrigPrice').textContent = btn.dataset.orig || '₱0.00';
-  document.getElementById('foodModalDiscPrice').textContent = btn.dataset.disc || '₱0.00';
-  document.getElementById('foodModalDate').textContent = btn.dataset.date || 'N/A';
-  document.getElementById('foodModalExpiry').textContent = btn.dataset.expiry || 'N/A';
-  document.getElementById('foodModalMerchant').textContent = btn.dataset.merchant || 'Merchant';
-  document.getElementById('foodModalAddress').textContent = btn.dataset.address || 'Cebu City';
-  window.openModal('foodModal');
-};
 
 window.flagFoodListingModal = async function() {
   const rawId = document.getElementById('currentFoodRawId').value;
@@ -1011,16 +749,7 @@ window.removeFoodListingModal = async function() {
   await window.removeFoodListing(rawId, rowId);
 };
 
-window.removeFoodListing = async function(rawId, rowId) {
-  if (!confirm("Are you sure you want to remove this food listing from the database?")) return;
-  await fetch('/api/accounts/admin/portal-action/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-    body: JSON.stringify({ module: 'listing', action: 'delete', id: rawId })
-  });
-  const row = document.getElementById(rowId);
-  if (row) row.remove();
-};
+
 
 window.openDonationPostingModal = function(hubName, produce, vol, date, beneficiaries, addr, rowId, rawId, isFbOrg) {
   document.getElementById('modalPostingHubTitle').textContent = hubName;
@@ -1074,14 +803,264 @@ window.handleDonationAction = async function(action, rawId, rowId, isFbOrg = fal
   window.location.reload();
 };
 
-window.handlePayoutAction = async function(action, rawId, rowId, isWallet = true) {
-  if (!confirm(`Confirm ${action} for this payout request?`)) return;
+// =========================================================
+// ENHANCED MODAL-ONLY ALERTS, LOGOUT CONFIRM, OCR MATCHING,
+// ADMIN PASSWORD RESET, MERCHANT DIRECTORY & PAYOUT MODAL
+// =========================================================
+
+window.saveAdminProfile = async function() {
+  const emailInput = document.getElementById('adminProfileEmailInput');
+  if (!emailInput) return;
+
+  try {
+    const res = await fetch('/api/accounts/admin/profile/update/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ email: emailInput.value })
+    });
+    if (res.ok) {
+      window.closeModal('adminProfileModal');
+      await themeAlert('Profile Updated', 'Admin profile email updated in database!', true);
+    } else {
+      await themeAlert('Update Failed', 'Failed to update admin email.', false);
+    }
+  } catch (e) {
+    await themeAlert('Network Error', 'Network error while saving profile.', false);
+  }
+};
+
+window.handleLogout = async function() {
+  const isSure = await themeConfirm(
+    'Confirm Logout',
+    'Are you sure you want to log out of the ReServe Administrator Portal?'
+  );
+  if (!isSure) return;
+  localStorage.removeItem('admin_access_token');
+  localStorage.removeItem('admin_refresh_token');
+  window.location.href = '/login/';
+};
+
+window.sendAdminPasswordResetEmail = async function() {
+  const btn = document.getElementById('sendAdminResetLinkBtn');
+  const feedback = document.getElementById('adminResetFeedback');
+  if (!btn || !feedback) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Sending Link...';
+  feedback.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/accounts/forgot-password/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_admin: true })
+    });
+    const data = await res.json();
+    feedback.classList.remove('hidden');
+    if (res.ok) {
+      feedback.className = 'p-3 rounded-xl font-bold text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200';
+      feedback.textContent = data.message || 'Password reset link sent to reserve.org.com@gmail.com!';
+      btn.textContent = 'Link Sent ✓';
+    } else {
+      feedback.className = 'p-3 rounded-xl font-bold text-[11px] bg-rose-50 text-rose-700 border border-rose-200';
+      feedback.textContent = data.error || 'Could not send reset email.';
+      btn.disabled = false;
+      btn.textContent = 'Send Reset Link to Email';
+    }
+  } catch (err) {
+    feedback.classList.remove('hidden');
+    feedback.className = 'p-3 rounded-xl font-bold text-[11px] bg-rose-50 text-rose-700 border border-rose-200';
+    feedback.textContent = 'Network error while requesting password reset.';
+    btn.disabled = false;
+    btn.textContent = 'Send Reset Link to Email';
+  }
+};
+
+window.compareOcrTokens = function(inputtedStr, extractedStr) {
+  const cleanA = (inputtedStr || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const cleanB = (extractedStr || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  if (!cleanA || !cleanB || cleanB === 'not detected' || cleanB === 'unverified') return false;
+  if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) return true;
+  const wordsA = cleanA.split(/\s+/).filter(w => w.length > 2);
+  const wordsB = cleanB.split(/\s+/).filter(w => w.length > 2);
+  const shared = wordsA.filter(w => wordsB.includes(w));
+  return shared.length > 0;
+};
+
+window.setMatchBadgeState = function(badgeId, isMatch) {
+  const el = document.getElementById(badgeId);
+  if (!el) return;
+  if (isMatch) {
+    el.textContent = '✓ Match';
+    el.className = 'text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+  } else {
+    el.textContent = '⚠ Check / Mismatch';
+    el.className = 'text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+  }
+};
+
+window.updateOcrMatchIndicators = function() {
+  const regName = document.getElementById('pendingBusName')?.textContent || '';
+  const regAddr = document.getElementById('pendingAddress')?.textContent || '';
+  const regRep = document.getElementById('pendingContact')?.textContent || '';
+
+  const ocrName = document.getElementById('ocrDetectName')?.value || '';
+  const ocrAddr = document.getElementById('ocrDetectAddress')?.value || '';
+  const ocrRep = document.getElementById('ocrDetectRep')?.value || '';
+
+  window.setMatchBadgeState('ocrMatchNameBadge', window.compareOcrTokens(regName, ocrName));
+  window.setMatchBadgeState('ocrMatchAddrBadge', window.compareOcrTokens(regAddr, ocrAddr));
+  window.setMatchBadgeState('ocrMatchRepBadge', window.compareOcrTokens(regRep, ocrRep));
+};
+
+window.openPendingModal = function(btn) {
+  const merchantId = btn.dataset.id || '';
+  document.getElementById('pendingMerchantId').value = merchantId;
+  document.getElementById('pendingModalTitle').textContent = `Merchant Verification — ${btn.dataset.name || 'Merchant'}`;
+  document.getElementById('pendingBusName').textContent = btn.dataset.name || 'N/A';
+  document.getElementById('pendingMerchType').textContent = btn.dataset.type || 'N/A';
+  document.getElementById('pendingDate').textContent = btn.dataset.date || 'N/A';
+  document.getElementById('pendingAddress').textContent = btn.dataset.address || 'Not Provided';
+  document.getElementById('pendingContact').textContent = btn.dataset.contact || 'Not Provided';
+  document.getElementById('pendingPhone').textContent = btn.dataset.phone || 'Not Provided';
+  document.getElementById('pendingHotline').textContent = btn.dataset.hotline || 'N/A';
+  document.getElementById('pendingEmail').textContent = btn.dataset.email || 'N/A';
+
+  let ocrData = {};
+  try {
+    ocrData = JSON.parse(btn.dataset.ocr || '{}');
+  } catch (e) {
+    ocrData = {};
+  }
+
+  const confScore = ocrData.confidence_score !== undefined ? Number(ocrData.confidence_score).toFixed(1) : '85.0';
+  const confBadge = document.getElementById('ocrConfidenceScore');
+  if (confBadge) {
+    confBadge.textContent = `Confidence: ${confScore}%`;
+  }
+
+  const permitPath = btn.dataset.permit || '';
+  const docNameEl = document.getElementById('ocrDocName');
+  if (docNameEl) {
+    const cleanFileName = permitPath.split('/').pop() || 'Business Permit';
+    docNameEl.textContent = cleanFileName;
+  }
+
+  const fileBtn = document.getElementById('pendingPermitBtn');
+  if (fileBtn) {
+    fileBtn.onclick = () => window.open(permitPath, '_blank');
+  }
+
+  document.getElementById('ocrDetectName').value = ocrData.business_name || btn.dataset.name || 'Not Detected';
+  document.getElementById('ocrDetectPermitNo').value = ocrData.permit_number || 'Not Detected';
+  document.getElementById('ocrDetectLGU').value = ocrData.lgu_anchor || 'Cebu City LGU';
+  document.getElementById('ocrDetectAddress').value = ocrData.business_address || btn.dataset.address || 'Not Detected';
+  document.getElementById('ocrDetectNature').value = ocrData.nature_of_business || btn.dataset.type || 'Food Establishment';
+  document.getElementById('ocrDetectYear').value = ocrData.calendar_year ? `Year ${ocrData.calendar_year}` : 'Year 2026';
+  document.getElementById('ocrDetectRep').value = ocrData.representative || btn.dataset.contact || 'Not Detected';
+  document.getElementById('ocrDetectExpiry').value = ocrData.expiry_date !== 'Not Detected' && ocrData.expiry_date
+    ? ocrData.expiry_date
+    : (btn.dataset.expiry || '2026-12-31');
+
+  window.setOcrInputsEditable(false);
+  window.updateOcrMatchIndicators();
+  window.openModal('merchantPendingModal');
+};
+
+window.filterListingsByBucket = function(bucket, btnEl) {
+  document.querySelectorAll('.listing-bucket-tab').forEach(t => {
+    t.className = 'listing-bucket-tab px-5 py-2.5 text-xs font-bold rounded-2xl text-gray-500 hover:text-[#1B4D3E]';
+  });
+  btnEl.className = 'listing-bucket-tab px-5 py-2.5 text-xs font-black rounded-2xl bg-white text-[#1B4D3E] shadow-sm border-b-2 border-[#1B4D3E]';
+
+  document.querySelectorAll('tr.listing-row').forEach(row => {
+    if (bucket === 'all' || row.dataset.bucket === bucket) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+};
+
+window.removeFoodListing = async function(rawId, rowId) {
+  const isSure = await themeConfirm("Remove Food Listing", "Are you sure you want to permanently remove this food listing from the database?");
+  if (!isSure) return;
   await fetch('/api/accounts/admin/portal-action/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-    body: JSON.stringify({ module: 'payout', action: action, id: rawId, is_merchant_wallet: isWallet })
+    body: JSON.stringify({ module: 'listing', action: 'delete', id: rawId })
   });
-  window.location.reload();
+  const row = document.getElementById(rowId);
+  if (row) row.remove();
+  await themeAlert("Listing Removed", "The food listing has been removed.", true);
+};
+
+window.openPayoutApprovalModal = function(btn) {
+  document.getElementById('poModalRawId').value = btn.dataset.rawId;
+  document.getElementById('poModalIsWallet').value = btn.dataset.isWallet;
+  document.getElementById('poModalTitle').textContent = `Withdrawal ${btn.dataset.id} — ${btn.dataset.merchant}`;
+  document.getElementById('poModalMerchant').textContent = `${btn.dataset.merchant} (${btn.dataset.merchantId})`;
+  document.getElementById('poModalTier').textContent = btn.dataset.tier;
+  document.getElementById('poModalContact').textContent = `${btn.dataset.contact} (${btn.dataset.phone})`;
+  document.getElementById('poModalEmail').textContent = btn.dataset.email;
+  document.getElementById('poModalBalance').textContent = btn.dataset.balance;
+  document.getElementById('poModalRequested').textContent = btn.dataset.requested;
+  document.getElementById('poModalFee').textContent = btn.dataset.fee;
+  document.getElementById('poModalNet').textContent = btn.dataset.net;
+  document.getElementById('poModalChannel').textContent = btn.dataset.channel;
+  document.getElementById('poModalAcctNum').textContent = btn.dataset.accountNum;
+  document.getElementById('poModalAcctName').textContent = btn.dataset.accountName;
+
+  const refInput = document.getElementById('poModalRefInput');
+  refInput.value = btn.dataset.ref || '';
+  const isSettled = (btn.dataset.status || '').toLowerCase() !== 'pending';
+  refInput.readOnly = isSettled;
+
+  const footer = document.getElementById('poModalActionsFooter');
+  if (footer) {
+    footer.style.display = isSettled ? 'none' : 'flex';
+  }
+
+  window.openModal('payoutApprovalModal');
+};
+
+window.submitPayoutDecision = async function(action) {
+  const rawId = document.getElementById('poModalRawId').value;
+  const isWallet = document.getElementById('poModalIsWallet').value === 'true';
+  const refNum = document.getElementById('poModalRefInput').value.trim();
+
+  if (action === 'approve' && !refNum) {
+    await themeAlert("Reference Number Required", "Please enter the official GCash/Maya transfer reference number before approving this withdrawal.", false);
+    return;
+  }
+
+  const isConfirmed = await themeConfirm(
+    action === 'approve' ? "Confirm Payout Transfer" : "Reject Withdrawal Request",
+    action === 'approve'
+      ? `Approve this withdrawal with Transfer Reference # "${refNum}"? The merchant will be notified immediately.`
+      : "Are you sure you want to reject this withdrawal request?"
+  );
+  if (!isConfirmed) return;
+
+  const res = await fetch('/api/accounts/admin/portal-action/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+    body: JSON.stringify({
+      module: 'payout',
+      action: action,
+      id: rawId,
+      is_merchant_wallet: isWallet,
+      reference_number: refNum
+    })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) {
+    window.closeModal('payoutApprovalModal');
+    await themeAlert("Payout Updated", data.message || "Withdrawal status updated.", true);
+    window.location.reload();
+  } else {
+    await themeAlert("Action Failed", data.error || "Could not process payout decision.", false);
+  }
 };
 
 window.handleAnnouncementSubmit = async function(e) {
@@ -1097,14 +1076,16 @@ window.handleAnnouncementSubmit = async function(e) {
   });
 
   if (res.ok) {
+    await themeAlert("Broadcast Published", "Your announcement has been broadcast to the selected audience.", true);
     window.location.reload();
   } else {
-    alert("Failed to publish broadcast.");
+    await themeAlert("Broadcast Failed", "Failed to publish broadcast.", false);
   }
 };
 
 window.deleteAnnouncement = async function(id) {
-  if (!confirm("Delete this broadcast from the database?")) return;
+  const isSure = await themeConfirm("Delete Broadcast", "Are you sure you want to delete this broadcast from the database?");
+  if (!isSure) return;
   const res = await fetch('/api/accounts/admin/portal-action/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
@@ -1113,5 +1094,209 @@ window.deleteAnnouncement = async function(id) {
   if (res.ok) {
     const card = document.getElementById(`broadcast-card-${id}`);
     if (card) card.remove();
+    await themeAlert("Deleted", "Broadcast removed.", true);
   }
 };
+
+window.ADMIN_TX_CACHE = {};
+
+async function loadLiveUserTransactions(role, accountId, targetTbodyId, colCount = 6) {
+  const tbody = document.getElementById(targetTbodyId);
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="${colCount + 1}" class="p-4 text-center text-gray-400 text-xs">Loading live records from database...</td></tr>`;
+
+  try {
+    const res = await fetch(`/api/accounts/admin/user-transactions/${role}/${accountId}/`);
+    const data = await res.json();
+    const list = data.transactions || [];
+
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${colCount + 1}" class="p-4 text-center text-gray-400 text-xs">No transactions recorded for this ${role.toLowerCase()} yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(tx => {
+      window.ADMIN_TX_CACHE[tx.id] = tx;
+      if (colCount === 5) {
+        return `
+          <tr class="hover:bg-gray-50/80">
+            <td class="p-3 font-bold text-gray-700">${tx.id}</td>
+            <td class="p-3 font-bold text-[#1B4D3E]">${tx.establishment}</td>
+            <td class="p-3 text-gray-600">${tx.title} (${tx.amount})</td>
+            <td class="p-3 text-gray-500">${tx.date}</td>
+            <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">${tx.status}</span></td>
+          </tr>
+        `;
+      }
+      return `
+        <tr class="hover:bg-gray-50/80">
+          <td class="p-3 font-bold text-gray-700">${tx.id}</td>
+          <td class="p-3 font-bold text-[#1B4D3E]">${tx.title}</td>
+          <td class="p-3 text-gray-600">${role === 'Consumer' ? tx.establishment : tx.buyer}</td>
+          <td class="p-3 text-gray-500">${tx.date}</td>
+          <td class="p-3 font-bold text-gray-800">${tx.total_value || tx.amount}</td>
+          <td class="p-3"><span class="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold">${tx.status}</span></td>
+          <td class="p-3">
+            <button type="button" onclick="openAdminTxSummaryModal('${tx.id}')" class="bg-[#1B4D3E] hover:bg-[#3A826D] text-white font-black text-[10px] px-3 py-1.5 rounded-xl shadow-xs">
+              VIEW
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="${colCount + 1}" class="p-4 text-center text-gray-400 text-xs">No transaction records found.</td></tr>`;
+  }
+}
+
+window.openAdminTxSummaryModal = function(txId) {
+  const tx = window.ADMIN_TX_CACHE[txId];
+  if (!tx) return;
+
+  document.getElementById('txSumTitle').textContent = `Transaction Summary — ${tx.id}`;
+  document.getElementById('txSumSubtitle').textContent = `Status: ${tx.status}`;
+  document.getElementById('txSumBuyer').textContent = tx.buyer || 'Verified Consumer';
+  document.getElementById('txSumMerchant').textContent = `${tx.establishment || 'Merchant'} (${tx.address || 'Cebu City'})`;
+  document.getElementById('txSumDate').textContent = tx.date || 'N/A';
+  document.getElementById('txSumDeadline').textContent = tx.pickup_deadline || 'Standard Window';
+  document.getElementById('txSumTotal').textContent = tx.total_value || tx.amount || '₱0.00';
+  document.getElementById('txSumDeposit').textContent = tx.deposit_paid || 'Paid Online';
+  document.getElementById('txSumRemaining').textContent = tx.remaining_balance || '₱0.00';
+
+  const itemsContainer = document.getElementById('txSumItemsList');
+  const items = tx.items_breakdown || [{ name: tx.title, qty: 1, unit_price: tx.amount, subtotal: tx.amount }];
+  itemsContainer.innerHTML = items.map(it => `
+    <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
+      <div>
+        <span class="font-bold text-[#1B4D3E]">${it.qty}x ${it.name}</span>
+        <span class="text-[10px] text-gray-400 block">Unit Price: ${it.unit_price}</span>
+      </div>
+      <span class="font-black text-gray-800">${it.subtotal}</span>
+    </div>
+  `).join('');
+
+  window.openModal('adminTxSummaryModal');
+};
+
+window.toggleSeeAllMerchants = function() {
+  const extraCards = document.querySelectorAll('.extra-merchant-card');
+  const btn = document.getElementById('toggleAllMerchantsBtn');
+  if (!extraCards.length || !btn) return;
+
+  const isCurrentlyHidden = extraCards[0].classList.contains('hidden');
+  extraCards.forEach(card => {
+    if (isCurrentlyHidden) card.classList.remove('hidden');
+    else card.classList.add('hidden');
+  });
+  btn.textContent = isCurrentlyHidden
+    ? 'Show Less'
+    : `See All (${document.querySelectorAll('.merchant-dir-card').length})`;
+};
+
+window.openFoodDetailModal = function(btn) {
+  document.getElementById('currentFoodRawId').value = btn.dataset.rawId || '';
+  document.getElementById('currentFoodRowId').value = `row-${btn.dataset.id}`;
+  document.getElementById('foodModalTitle').textContent = btn.dataset.title || 'Food Item';
+  document.getElementById('foodModalDesc').textContent = btn.dataset.desc || '';
+  document.getElementById('foodModalQty').textContent = btn.dataset.qty || '1';
+  document.getElementById('foodModalOrigPrice').textContent = btn.dataset.orig || '₱0.00';
+  document.getElementById('foodModalDiscPrice').textContent = btn.dataset.disc || '₱0.00';
+  if (document.getElementById('foodModalDate')) {
+    document.getElementById('foodModalDate').textContent = btn.dataset.date || 'N/A';
+  }
+  document.getElementById('foodModalExpiry').textContent = btn.dataset.expiry || 'N/A';
+  document.getElementById('foodModalMerchant').textContent = btn.dataset.merchant || 'Merchant';
+  document.getElementById('foodModalAddress').textContent = btn.dataset.address || 'Cebu City';
+
+  const imgEl = document.getElementById('foodModalImg');
+  if (imgEl) {
+    imgEl.src = btn.dataset.img || 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80';
+  }
+  window.openModal('foodModal');
+};
+
+window.openMerchantDirectoryProfile = function(cardEl) {
+  const merchId = cardEl.dataset.id;
+  const name = cardEl.dataset.name || 'Merchant';
+  document.getElementById('mpModalInitial').textContent = name.charAt(0).toUpperCase();
+  document.getElementById('mpModalName').textContent = name;
+  document.getElementById('mpModalRatingBadge').textContent = `★ ${cardEl.dataset.rating || '5.0'} (${cardEl.dataset.reviews || '0'} reviews)`;
+  document.getElementById('mpModalSub').textContent = `${cardEl.dataset.idLabel} • ${cardEl.dataset.type} • ${cardEl.dataset.status}`;
+  document.getElementById('mpModalContact').textContent = `Contact: ${cardEl.dataset.contact}`;
+  document.getElementById('mpModalPhone').textContent = `Phone: ${cardEl.dataset.phone} | Hotline: ${cardEl.dataset.hotline}`;
+  document.getElementById('mpModalEmail').textContent = cardEl.dataset.email;
+  document.getElementById('mpModalAddress').textContent = cardEl.dataset.address;
+  document.getElementById('mpModalWallet').textContent = cardEl.dataset.wallet;
+  document.getElementById('mpModalPlan').textContent = cardEl.dataset.plan;
+  document.getElementById('mpModalExpiry').textContent = cardEl.dataset.expiry;
+  document.getElementById('mpModalActiveCount').textContent = cardEl.dataset.active || '0';
+  document.getElementById('mpModalFlaggedCount').textContent = cardEl.dataset.flagged || '0';
+
+  const filterBtn = document.getElementById('mpFilterPageBtn');
+  if (filterBtn) {
+    filterBtn.onclick = () => {
+      window.location.href = `/food-listing/?merchant=MID-${merchId}`;
+    };
+  }
+
+  let items = [];
+  try {
+    items = JSON.parse(cardEl.dataset.items || '[]');
+  } catch (e) {
+    items = [];
+  }
+
+  const listTbody = document.getElementById('mpModalListingsBody');
+  if (listTbody) {
+    if (items.length === 0) {
+      listTbody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-gray-400">No food listings posted by this merchant yet.</td></tr>`;
+    } else {
+      listTbody.innerHTML = items.map(it => {
+        const photoUrl = it.image_url || 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=200&q=80';
+        return `
+        <tr class="hover:bg-gray-50">
+          <td class="p-2.5 font-bold text-gray-600">${it.id}</td>
+          <td class="p-2.5">
+            <div class="flex items-center gap-2.5">
+              <img src="${photoUrl}" onerror="this.src='https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=200&q=80'" class="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0">
+              <span class="font-bold text-[#1B4D3E]">${it.title}</span>
+            </div>
+          </td>
+          <td class="p-2.5"><span class="line-through text-gray-400 text-[10px] mr-1">${it.orig_price}</span><strong>${it.disc_price}</strong></td>
+          <td class="p-2.5 font-bold">${it.quantity}</td>
+          <td class="p-2.5 text-gray-600">${it.expiry}</td>
+          <td class="p-2.5"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white ${it.bucket === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}">${it.status}</span></td>
+        </tr>
+      `}).join('');
+    }
+  }
+
+  loadLiveUserTransactions('Merchant', merchId, 'mpModalTransactionsBody', 6);
+  window.openModal('merchantDirectoryProfileModal');
+};
+
+// Update Visit Profile links in openActiveModal & openFoodBankModal to auto-open target profile
+const _baseOpenActiveModal = window.openActiveModal;
+window.openActiveModal = function(btn) {
+  _baseOpenActiveModal(btn);
+  const merchantId = btn.dataset.id;
+  const visitBtn = document.getElementById('activeVisitProfileBtn');
+  if (visitBtn) {
+    visitBtn.onclick = () => {
+      window.location.href = `/food-listing/?merchant=MID-${merchantId}&open_profile=1`;
+    };
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const merchParam = (params.get('merchant') || '').replace('MID-', '').trim();
+  if (merchParam && params.get('open_profile') === '1') {
+    const targetCard = document.getElementById(`merchant-profile-card-${merchParam}`);
+    if (targetCard) {
+      targetCard.classList.remove('hidden');
+      setTimeout(() => window.openMerchantDirectoryProfile(targetCard), 150);
+    }
+  }
+});

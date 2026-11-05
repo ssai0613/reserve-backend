@@ -7,6 +7,7 @@ class User(models.Model):
     user_pass = models.CharField(max_length=255)
     user_role = models.CharField(max_length=50)  # Admin, Merchant, Consumer, FoodBank
     is_banned = models.BooleanField(default=False)
+    settings_json = models.TextField(default='{}', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -67,23 +68,22 @@ class Merchant(models.Model):
     merch_id = models.AutoField(primary_key=True)
     bus_name = models.CharField(max_length=255)
     merch_type = models.CharField(max_length=50)
-    
-    # Registration Details
+
     address = models.CharField(max_length=255, null=True, blank=True)
     contact_person = models.CharField(max_length=255, null=True, blank=True)
     hotline = models.CharField(max_length=50, null=True, blank=True)
     phone = models.CharField(max_length=50, null=True, blank=True)
-    
+
     bus_permit_path = models.CharField(max_length=255)
     bus_expiry_date = models.DateField()
     is_verified = models.BooleanField(default=False)
     status = models.CharField(max_length=50, default='Pending')
-    status_reason = models.TextField(blank=True, null=True)  # Stores rejection/suspension/renewal reason
+    status_reason = models.TextField(blank=True, null=True)
     wallet_bal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    
+
     ocr_confidence = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     ocr_extracted_text = models.TextField(blank=True, null=True)
-    
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, db_column='user_id', related_name='merchant_profile')
     plan = models.ForeignKey('SubscriptionPlan', on_delete=models.PROTECT, db_column='plan_id', related_name='merchants')
 
@@ -110,13 +110,12 @@ class MerchantContact(models.Model):
 class FoodBank(models.Model):
     org_id = models.AutoField(primary_key=True)
     org_name = models.CharField(max_length=255)
-    
-    # Registration Details (Mirrors Merchant)
+
     address = models.CharField(max_length=255, null=True, blank=True)
     contact_person = models.CharField(max_length=255, null=True, blank=True)
     hotline = models.CharField(max_length=50, null=True, blank=True)
     phone = models.CharField(max_length=50, null=True, blank=True)
-    
+
     accreditation_path = models.CharField(max_length=255)
     accreditation_expiry = models.DateField(blank=True, null=True)
     status = models.CharField(max_length=50, default='Pending')

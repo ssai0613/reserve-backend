@@ -1,15 +1,17 @@
 import json
 import datetime
+import uuid
 from decimal import Decimal
 from django.shortcuts import render
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Avg
 from django.apps import apps
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 import random
 from django.core.cache import cache
 from rest_framework.permissions import AllowAny
@@ -20,185 +22,29 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated
 
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from notifications.models import AdminNotification
+from notifications.models import AdminNotification, UserNotification, Announcement
+from transactions.models import WithdrawalReq, RatingReview, OrderReservation
 
 from .models import Consumer, Merchant, User, FoodBank, Location
 from .serializers import UserRegistrationSerializer, CustomLoginSerializer
 from .merchant_serializers import MerchantRegistrationSerializer
-from .utils import extract_cebu_permit_data, simulate_ocr_extraction
+from .utils import extract_cebu_permit_data
+
+
+OTP_MEMORY_STORE = {}
+PASSWORD_RESET_STORE = {}
 
 
 def send_compliance_email(to_email, subject, body):
-    """
-    Sends an email notification to the user.
-    Safely falls back to terminal logging if SMTP is not yet configured in settings.py.
-    """
     print(f"\n--- [EMAIL DISPATCH TO: {to_email}] ---\nSubject: {subject}\n{body}\n--------------------------------------\n")
     try:
         send_mail(
             subject=subject,
             message=body,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@reserve-cebu.com'),
-            recipient_list=[to_email],
-            fail_silently=True,
-        )
-    except Exception as e:
-        print(f"Email Notice Log: {e}")
-
-
-def fetch_dynamic_records(app_labels, filter_kwargs=None, limit=15):
-    """
-    Safely queries models from teammates' apps (listings, transactions, donations)
-    and normalizes them into a clean dictionary list for templates and JSON APIs.
-    """
-    records = []
-    for label in app_labels:
-        try:
-            app_config = apps.get_app_config(label)
-            for model in app_config.get_models():
-                qs = model.objects.all()
-                if filter_kwargs:
-                    valid_filters = {}
-                    model_fields = [f.name for f in model._meta.get_fields()]
-                    for k, v in filter_kwargs.items():
-                        if k in model_fields:
-                            valid_filters[k] = v
-                    if valid_filters:
-                        qs = qs.filter(**valid_filters)
-                    else:
-                        continue
-
-                for obj in qs.order_by('-pk')[:limit]:
-                    pk_val = getattr(obj, obj._meta.pk.name, '')
-                    
-                    # Resolve item / food title
-                    title = None
-                    for field in ['food_name', 'item_name', 'title', 'listing_name', 'name', 'description']:
-                        if hasattr(obj, field) and getattr(obj, field):
-                            title = str(getattr(obj, field))
-                            break
-                    if not title and hasattr(obj, 'listing') and getattr(obj, 'listing'):
-                        listing_obj = getattr(obj, 'listing')
-                        for f in ['food_name', 'item_name', 'title', 'name']:
-                            if hasattr(listing_obj, f):
-                                title = str(getattr(listing_obj, f))
-                                break
-
-                    # Resolve merchant / establishment name
-                    est_name = None
-                    if hasattr(obj, 'merchant') and getattr(obj, 'merchant'):
-                        est_name = getattr(obj.merchant, 'bus_name', str(obj.merchant))
-                    elif hasattr(obj, 'listing') and getattr(obj, 'listing') and hasattr(obj.listing, 'merchant'):
-                        est_name = getattr(obj.listing.merchant, 'bus_name', '')
-
-                    # Resolve buyer / recipient name
-                    buyer_name = None
-                    if hasattr(obj, 'consumer') and getattr(obj, 'consumer'):
-                        buyer_name = getattr(obj.consumer, 'cons_fullname', str(obj.consumer))
-                    elif hasattr(obj, 'foodbank') and getattr(obj, 'foodbank'):
-                        buyer_name = getattr(obj.foodbank, 'org_name', str(obj.foodbank))
-                    elif hasattr(obj, 'food_bank') and getattr(obj, 'food_bank'):
-                        buyer_name = getattr(obj.food_bank, 'org_name', str(obj.food_bank))
-
-                    # Resolve price / quantity
-                    amount_str = "Donation"
-                    for field in ['total_amount', 'amount', 'discounted_price', 'price', 'orig_price']:
-                        if hasattr(obj, field) and getattr(obj, field) is not None:
-                            val = getattr(obj, field)
-                            try:
-                                amount_str = f"₱{float(val):,.2f}"
-                            except Exception:
-                                amount_str = str(val)
-                            break
-                    if amount_str == "Donation":
-                        for qfield in ['quantity', 'qty', 'weight_kg']:
-                            if hasattr(obj, qfield) and getattr(obj, qfield) is not None:
-                                amount_str = f"{getattr(obj, qfield)} qty/kg"
-                                break
-
-                    # Resolve status
-                    status_val = "Active"
-                    for sfield in ['status', 'order_status', 'claim_status', 'listing_status']:
-                        if hasattr(obj, sfield) and getattr(obj, sfield):
-                            status_val = str(getattr(obj, sfield))
-                            break
-
-                    # Resolve date
-                    date_str = datetime.date.today().strftime('%Y-%m-%d')
-                    for dfield in ['created_at', 'order_date', 'date_created', 'claimed_at', 'pickup_time', 'expiry_date']:
-                        if hasattr(obj, dfield) and getattr(obj, dfield):
-                            dval = getattr(obj, dfield)
-                            if hasattr(dval, 'strftime'):
-                                date_str = dval.strftime('%Y-%m-%d')
-                            else:
-                                date_str = str(dval)[:10]
-                            break
-
-                    prefix = label[:3].upper()
-                    records.append({
-                        'id': f"{prefix}-{pk_val}",
-                        'title': title or f"{model.__name__} #{pk_val}",
-                        'establishment': est_name or "Partner Merchant",
-                        'buyer': buyer_name or "Verified User",
-                        'date': date_str,
-                        'amount': amount_str,
-                        'status': status_val,
-                    })
-        except Exception:
-            continue
-    return records[:limit]
-
-
-
-
-def normalize_ph_phone(phone_raw):
-    """
-    Validates and normalizes any valid Philippine mobile format into ('+639XXXXXXXXX', '09XXXXXXXXX'):
-    - 09171234567 (11 digits)
-    - +639171234567 (+63 + 10 digits)
-    - +6309171234567 (+63 + 11 digits starting with 09)
-    - 639171234567 or 6309171234567
-    - 9171234567 (10 digits starting with 9)
-    """
-    # Strip spaces, dashes, parentheses, and non-digit/plus characters
-    cleaned = re.sub(r'[^\d\+]', '', str(phone_raw or ''))
-
-    # Extract the 10-digit subscriber number starting with '9'
-    subscriber = None
-    if re.match(r'^09\d{9}$', cleaned):
-        subscriber = cleaned[1:]          # 09171234567 -> 9171234567
-    elif re.match(r'^\+639\d{9}$', cleaned):
-        subscriber = cleaned[3:]          # +639171234567 -> 9171234567
-    elif re.match(r'^\+6309\d{9}$', cleaned):
-        subscriber = cleaned[4:]          # +6309171234567 -> 9171234567
-    elif re.match(r'^639\d{9}$', cleaned):
-        subscriber = cleaned[2:]          # 639171234567 -> 9171234567
-    elif re.match(r'^6309\d{9}$', cleaned):
-        subscriber = cleaned[3:]          # 6309171234567 -> 9171234567
-    elif re.match(r'^9\d{9}$', cleaned):
-        subscriber = cleaned              # 9171234567 -> 9171234567
-
-    if subscriber and len(subscriber) == 10 and subscriber.startswith('9'):
-        return f"+63{subscriber}", f"0{subscriber}"
-
-    return None, None
-
-
-def send_compliance_email(to_email, subject, body):
-    """
-    Dispatches a real SMTP email via Gmail when EMAIL_HOST_USER & EMAIL_HOST_PASSWORD are set.
-    """
-    print(f"\n--- [EMAIL DISPATCH TO: {to_email}] ---\nSubject: {subject}\n{body}\n--------------------------------------\n")
-    try:
-        send_mail(
-            subject=subject,
-            message=body,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@reserve-cebu.com'),
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'reserve.org.com@gmail.com'),
             recipient_list=[to_email],
             fail_silently=False,
         )
@@ -209,36 +55,72 @@ def send_compliance_email(to_email, subject, body):
 
 
 def send_twilio_sms(to_e164_phone, message_body):
-    """
-    Sends a real SMS to a +63 Philippine mobile number using Twilio REST API.
-    """
-    sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
-    token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
-    from_num = getattr(settings, 'TWILIO_PHONE_NUMBER', '')
+    textbee_key = getattr(settings, 'TEXTBEE_API_KEY', '').strip()
+    textbee_device = getattr(settings, 'TEXTBEE_DEVICE_ID', '').strip()
 
-    print(f"\n--- [TWILIO SMS DISPATCH TO: {to_e164_phone}] ---\n{message_body}\n--------------------------------------------\n")
-    if not sid or not token or not from_num:
-        print("Twilio credentials not yet set in .env; logged SMS above.")
+    print(f"\n--- [TEXTBEE SMS DISPATCH TO: {to_e164_phone}] ---\n{message_body}\n--------------------------------------------\n")
+
+    if not textbee_key or not textbee_device:
         return False
 
     try:
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+        url = f"https://api.textbee.dev/api/v1/gateway/devices/{textbee_device}/send-sms"
         res = requests.post(
             url,
-            data={"To": to_e164_phone, "From": from_num, "Body": message_body},
-            auth=(sid, token),
-            timeout=8,
+            json={"recipients": [to_e164_phone], "message": message_body},
+            headers={"x-api-key": textbee_key},
+            timeout=10,
         )
         if res.status_code in (200, 201):
             return True
-        print("Twilio API response:", res.text)
         return False
     except Exception as e:
-        print("Twilio SMS Error:", e)
+        print("TextBee SMS Error:", e)
         return False
 
 
-OTP_MEMORY_STORE = {}
+def normalize_ph_phone(phone_raw):
+    if not phone_raw:
+        return None, None
+
+    raw_str = str(phone_raw).strip()
+    digits = re.sub(r'\D', '', raw_str)
+
+    if digits.startswith('6309') and len(digits) == 13:
+        digits = digits[2:]
+    elif digits.startswith('639') and len(digits) == 12:
+        digits = '0' + digits[2:]
+    elif digits.startswith('9') and len(digits) == 10:
+        digits = '0' + digits
+
+    if len(digits) == 11 and digits.startswith('09'):
+        subscriber = digits[1:]
+        return f"+63{subscriber}", f"0{subscriber}"
+
+    return None, None
+
+
+def log_system_activity(notif_type, message, target_user=None, merchant=None, withdrawal=None):
+    """
+    Creates both an AdminNotification (with timestamp) and a UserNotification for the target user.
+    """
+    try:
+        admin_user = User.objects.filter(user_role='Admin').first() or User.objects.first()
+        if admin_user:
+            AdminNotification.objects.create(
+                user=admin_user,
+                admin_notif_type=notif_type[:100],
+                message=message,
+                merchant=merchant,
+                withdrawal=withdrawal,
+            )
+        if target_user:
+            UserNotification.objects.create(
+                user=target_user,
+                message=message,
+            )
+    except Exception as e:
+        print("Activity log notice:", e)
 
 
 class SendRegistrationOTPView(APIView):
@@ -246,12 +128,45 @@ class SendRegistrationOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        channel = str(request.data.get('channel', '')).strip().lower()
         email = str(request.data.get('email', '')).strip().lower()
         raw_phone = str(
             request.data.get('phone')
             or request.data.get('phone_number')
+            or request.data.get('phoneNumber')
             or ''
         ).strip()
+
+        if channel == 'sms' or (raw_phone and not email):
+            e164_phone, local_phone = normalize_ph_phone(raw_phone)
+            if not e164_phone:
+                return Response({
+                    "error": f"Invalid Philippine phone number ('{raw_phone}'). Please enter an 11-digit mobile number starting with 09 (e.g. 09123456789)."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            sms_otp = f"{random.randint(100000, 999999)}"
+            sms_key = f"sms_{e164_phone}"
+            OTP_MEMORY_STORE[sms_key] = {
+                "sms_otp": sms_otp,
+                "phone": e164_phone,
+                "verified": False,
+            }
+            try:
+                cache.set(f"reserve_{sms_key}", OTP_MEMORY_STORE[sms_key], timeout=600)
+            except Exception:
+                pass
+
+            sms_sent = send_twilio_sms(
+                e164_phone,
+                f"RESERVE Cebu: Your 6-digit phone verification code is {sms_otp}. Valid for 10 mins."
+            )
+
+            return Response({
+                "message": f"6-digit SMS OTP sent to {e164_phone}.",
+                "normalized_phone": e164_phone,
+                "local_phone": local_phone,
+                "sms_sent": sms_sent,
+            }, status=status.HTTP_200_OK)
 
         if not email or '@' not in email:
             return Response({"error": "Please enter a valid email address."}, status=status.HTTP_400_BAD_REQUEST)
@@ -259,19 +174,10 @@ class SendRegistrationOTPView(APIView):
         if User.objects.filter(user_email__iexact=email).exists():
             return Response({"error": "This email address is already registered."}, status=status.HTTP_400_BAD_REQUEST)
 
-        e164_phone, local_phone = normalize_ph_phone(raw_phone)
-        if not e164_phone:
-            return Response({
-                "error": "Invalid Philippine phone number. Please enter an 11-digit mobile number starting with 09 (e.g. 09171234567) or +639 (e.g. +639171234567)."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         email_otp = f"{random.randint(100000, 999999)}"
-        sms_otp = f"{random.randint(100000, 999999)}"
-
         OTP_MEMORY_STORE[email] = {
             "email_otp": email_otp,
-            "sms_otp": sms_otp,
-            "phone": e164_phone,
+            "phone": raw_phone,
         }
         try:
             cache.set(f"reserve_otp_{email}", OTP_MEMORY_STORE[email], timeout=600)
@@ -283,17 +189,11 @@ class SendRegistrationOTPView(APIView):
             "RESERVE Cebu - Email Verification Code",
             f"Welcome to RESERVE!\n\nYour 6-digit Email Verification Code is: {email_otp}\n\nThis code expires in 10 minutes."
         )
-        sms_sent = send_twilio_sms(
-            e164_phone,
-            f"RESERVE Cebu: Your 6-digit phone verification code is {sms_otp}. Valid for 10 mins."
-        )
 
         return Response({
-            "message": f"Verification codes sent to {email} and {e164_phone}.",
-            "normalized_phone": e164_phone,
-            "local_phone": local_phone,
+            "message": f"Email verification code sent to {email}.",
             "email_sent": email_sent,
-            "sms_sent": sms_sent,
+            "dev_otp_preview": email_otp,
         }, status=status.HTTP_200_OK)
 
 
@@ -302,38 +202,421 @@ class VerifyRegistrationOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        channel = str(request.data.get('channel', '')).strip().lower()
         email = str(request.data.get('email', '')).strip().lower()
+        raw_phone = str(
+            request.data.get('phone')
+            or request.data.get('phone_number')
+            or request.data.get('phoneNumber')
+            or ''
+        ).strip()
         email_code = str(request.data.get('otp', '')).strip()
         sms_code = str(request.data.get('sms_otp', '')).strip()
 
-        record = OTP_MEMORY_STORE.get(email)
-        if not record:
+        if channel == 'sms' or (sms_code and not email_code):
+            e164_phone, _ = normalize_ph_phone(raw_phone)
+            if not e164_phone:
+                return Response({"error": "Invalid Philippine phone number."}, status=status.HTTP_400_BAD_REQUEST)
+
+            sms_key = f"sms_{e164_phone}"
+            record = OTP_MEMORY_STORE.get(sms_key) or cache.get(f"reserve_{sms_key}")
+            if not record:
+                return Response({"error": "SMS OTP expired or not found. Please tap 'Resend OTP'."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if sms_code != str(record.get("sms_otp", "")):
+                return Response({"error": "Invalid 6-digit SMS OTP code. Please check your text messages."}, status=status.HTTP_400_BAD_REQUEST)
+
+            record["verified"] = True
+            OTP_MEMORY_STORE[sms_key] = record
             try:
-                record = cache.get(f"reserve_otp_{email}")
+                cache.set(f"reserve_{sms_key}", record, timeout=600)
             except Exception:
-                record = None
+                pass
 
+            return Response({"message": "Phone number verified successfully!"}, status=status.HTTP_200_OK)
+
+        if raw_phone:
+            e164_phone, _ = normalize_ph_phone(raw_phone)
+            sms_key = f"sms_{e164_phone}" if e164_phone else ""
+            sms_record = OTP_MEMORY_STORE.get(sms_key) or (cache.get(f"reserve_{sms_key}") if sms_key else None)
+            if not sms_record or not sms_record.get("verified"):
+                return Response({"error": "Please verify your Philippine mobile number via SMS OTP first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        record = OTP_MEMORY_STORE.get(email) or cache.get(f"reserve_otp_{email}")
         if not record:
-            return Response({"error": "Verification session expired. Please request a new code."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Email verification session expired. Please request a new code."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Support both dictionary (dual email + sms) and legacy string
-        if isinstance(record, dict):
-            expected_email = str(record.get("email_otp", ""))
-            expected_sms = str(record.get("sms_otp", ""))
-            if email_code != expected_email:
-                return Response({"error": "Invalid Email OTP code. Please check your inbox."}, status=status.HTTP_400_BAD_REQUEST)
-            if sms_code and sms_code != expected_sms:
-                return Response({"error": "Invalid SMS OTP code. Please check your text messages."}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            if email_code != str(record):
-                return Response({"error": "Invalid OTP code."}, status=status.HTTP_400_BAD_REQUEST)
+        expected_email = str(record.get("email_otp", "")) if isinstance(record, dict) else str(record)
+        if email_code != expected_email:
+            return Response({"error": "Invalid Email OTP code. Please check your inbox."}, status=status.HTTP_400_BAD_REQUEST)
 
         OTP_MEMORY_STORE.pop(email, None)
         try:
             cache.delete(f"reserve_otp_{email}")
         except Exception:
             pass
-        return Response({"message": "Email and Philippine mobile number verified!"}, status=status.HTTP_200_OK)
+
+        return Response({"message": "Both Phone and Email verified!"}, status=status.HTTP_200_OK)
+
+
+class ForgotPasswordRequestView(APIView):
+    """
+    Sends a clickable password reset link to the user's email (or reserve.org.com@gmail.com for Admin).
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        is_admin_portal = bool(request.data.get('is_admin', False))
+        email = str(request.data.get('email', '')).strip().lower()
+
+        if is_admin_portal:
+            target_user = User.objects.filter(user_role='Admin').first()
+            recipient_email = getattr(settings, 'EMAIL_HOST_USER', 'reserve.org.com@gmail.com')
+            if not target_user:
+                return Response({"error": "No Admin account found in database."}, status=status.HTTP_404_NOT_FOUND)
+            account_email = target_user.user_email
+        else:
+            if not email or '@' not in email:
+                return Response({"error": "Please enter your registered email address."}, status=status.HTTP_400_BAD_REQUEST)
+            target_user = User.objects.filter(user_email__iexact=email).first()
+            if not target_user:
+                return Response({"error": "No RESERVE account found with that email address."}, status=status.HTTP_404_NOT_FOUND)
+            recipient_email = target_user.user_email
+            account_email = target_user.user_email
+
+        token = uuid.uuid4().hex
+        PASSWORD_RESET_STORE[token] = {
+            "user_id": target_user.user_id,
+            "email": account_email,
+            "is_admin": is_admin_portal,
+        }
+        try:
+            cache.set(f"reserve_pw_reset_{token}", PASSWORD_RESET_STORE[token], timeout=1800)
+        except Exception:
+            pass
+
+        host_scheme = request.scheme or "http"
+        host_domain = request.get_host() or "127.0.0.1:8000"
+        reset_link = f"{host_scheme}://{host_domain}/reset-password/?token={token}&email={account_email}"
+
+        send_compliance_email(
+            recipient_email,
+            "RESERVE Cebu - Password Reset Link",
+            f"Hello,\n\nA password reset was requested for your RESERVE account ({account_email}).\n\n"
+            f"Click the link below to set a new password:\n{reset_link}\n\n"
+            f"This link is valid for 30 minutes. If you did not request this, you can safely ignore this email."
+        )
+
+        return Response({
+            "message": f"Password reset link has been sent to {recipient_email}. Please check your inbox and click the link to set a new password."
+        }, status=status.HTTP_200_OK)
+
+
+class ResetPasswordConfirmView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = str(request.data.get('token', '')).strip()
+        new_password = str(request.data.get('new_password', '')).strip()
+        confirm_password = str(request.data.get('confirm_password', '')).strip()
+
+        if not token:
+            return Response({"error": "Invalid or missing reset token."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new_password) < 6:
+            return Response({"error": "Password must be at least 6 characters long."}, status=status.HTTP_400_BAD_REQUEST)
+        if new_password != confirm_password:
+            return Response({"error": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+
+        record = PASSWORD_RESET_STORE.get(token) or cache.get(f"reserve_pw_reset_{token}")
+        if not record:
+            return Response({"error": "This password reset link has expired or already been used."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(user_id=record['user_id']).first()
+        if not user:
+            return Response({"error": "Account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user.user_pass = make_password(new_password)
+        user.save()
+
+        PASSWORD_RESET_STORE.pop(token, None)
+        try:
+            cache.delete(f"reserve_pw_reset_{token}")
+        except Exception:
+            pass
+
+        log_system_activity(
+            "Security",
+            f"Password successfully reset for {user.user_email} ({user.user_role}).",
+            target_user=user,
+        )
+
+        return Response({"message": "Your password has been updated successfully! You may now log in."}, status=status.HTTP_200_OK)
+
+
+def reset_password_page(request):
+    token = request.GET.get('token', '')
+    email = request.GET.get('email', '')
+    return render(request, 'reset_password.html', {'token': token, 'email': email})
+
+
+class UserSettingsToggleView(APIView):
+    """
+    Persists user notification/automation toggles in User.settings_json so they stay saved after logout/login.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        email = request.GET.get('email', '').strip()
+        profile_id = request.GET.get('profile_id', '').strip()
+        role = request.GET.get('role', 'Merchant').strip()
+
+        user = None
+        if email:
+            user = User.objects.filter(user_email__iexact=email).first()
+        elif profile_id.isdigit():
+            if role.lower() == 'merchant':
+                m = Merchant.objects.select_related('user').filter(merch_id=int(profile_id)).first()
+                user = m.user if m else None
+            elif role.lower() == 'consumer':
+                c = Consumer.objects.select_related('user').filter(cons_id=int(profile_id)).first()
+                user = c.user if c else None
+            elif role.lower() == 'foodbank':
+                f = FoodBank.objects.select_related('user').filter(org_id=int(profile_id)).first()
+                user = f.user if f else None
+
+        default_settings = {
+            "pushNotif": True,
+            "smsAlerts": True,
+            "emailReports": False,
+            "autoDonateExpiry": True,
+        }
+        if not user:
+            return Response(default_settings, status=status.HTTP_200_OK)
+
+        try:
+            saved = json.loads(user.settings_json or '{}')
+            default_settings.update(saved)
+        except Exception:
+            pass
+        return Response(default_settings, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        email = str(request.data.get('email', '')).strip()
+        profile_id = str(request.data.get('profile_id', '')).strip()
+        role = str(request.data.get('role', 'Merchant')).strip()
+        settings_payload = request.data.get('settings', {})
+
+        user = None
+        if email:
+            user = User.objects.filter(user_email__iexact=email).first()
+        if not user and profile_id.isdigit():
+            if role.lower() == 'merchant':
+                m = Merchant.objects.select_related('user').filter(merch_id=int(profile_id)).first()
+                user = m.user if m else None
+            elif role.lower() == 'consumer':
+                c = Consumer.objects.select_related('user').filter(cons_id=int(profile_id)).first()
+                user = c.user if c else None
+            elif role.lower() == 'foodbank':
+                f = FoodBank.objects.select_related('user').filter(org_id=int(profile_id)).first()
+                user = f.user if f else None
+
+        if not user:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            current = json.loads(user.settings_json or '{}')
+        except Exception:
+            current = {}
+
+        if isinstance(settings_payload, dict):
+            current.update(settings_payload)
+
+        user.settings_json = json.dumps(current)
+        user.save()
+        return Response({"message": "Preferences saved.", "settings": current}, status=status.HTTP_200_OK)
+
+
+class SupportReportSubmitView(APIView):
+    """
+    Allows Consumers, Merchants, and Food Banks to submit Help & Support reports/tickets.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        role = str(request.data.get('role', 'User')).strip()
+        email = str(request.data.get('email', '')).strip()
+        category = str(request.data.get('category', 'General Inquiry')).strip()
+        subject = str(request.data.get('subject', '')).strip()
+        message = str(request.data.get('message', '')).strip()
+
+        if not subject or not message:
+            return Response({"error": "Please provide both a subject and detailed description."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(user_email__iexact=email).first() if email else None
+        log_system_activity(
+            "Support",
+            f"[{role} Report - {category}] From {email or role}: {subject} — {message}",
+            target_user=user,
+        )
+
+        admin_email = getattr(settings, 'EMAIL_HOST_USER', 'reserve.org.com@gmail.com')
+        send_compliance_email(
+            admin_email,
+            f"RESERVE Help & Support Report [{role}: {category}]",
+            f"Reporter Role: {role}\nReporter Email: {email}\nCategory: {category}\nSubject: {subject}\n\nDetails:\n{message}"
+        )
+
+        return Response({
+            "message": "Your support report has been submitted to the ReServe Admin team. We will respond via email shortly."
+        }, status=status.HTTP_201_CREATED)
+
+
+class MerchantWithdrawalView(APIView):
+    """
+    Allows Merchants to submit and view withdrawal requests (GCash / Maya) with 10% free-tier fee calculation.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        merch_id = request.GET.get('merchant')
+        if not merch_id or not str(merch_id).isdigit():
+            return Response([], status=status.HTTP_200_OK)
+
+        qs = WithdrawalReq.objects.filter(merchant_id=int(merch_id)).order_by('-withdrawal_id')
+        data = []
+        for w in qs:
+            data.append({
+                "withdrawal_id": w.withdrawal_id,
+                "id": f"PO-{w.withdrawal_id}",
+                "amount": float(w.amount or 0),
+                "channel": w.channel or "GCash",
+                "account_number": w.gcash_num,
+                "account_name": w.account_name or w.merchant.contact_person or w.merchant.bus_name,
+                "fee_deducted": float(w.fee_deducted or 0),
+                "net_payout": float(w.net_payout or w.amount or 0),
+                "reference_number": w.reference_number or "",
+                "status": w.withdrawal_status,
+                "created_at": w.created_at.strftime('%Y-%m-%d %I:%M %p') if w.created_at else timezone.now().strftime('%Y-%m-%d'),
+                "processed_at": w.processed_at.strftime('%Y-%m-%d %I:%M %p') if w.processed_at else "",
+            })
+        return Response(data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        merch_id = request.data.get('merchant_id')
+        channel = str(request.data.get('channel', 'GCash')).strip()
+        account_number = str(request.data.get('account_number', '')).strip()
+        account_name = str(request.data.get('account_name', '')).strip()
+        try:
+            amount = Decimal(str(request.data.get('amount', '0')))
+        except Exception:
+            return Response({"error": "Invalid withdrawal amount."}, status=status.HTTP_400_BAD_REQUEST)
+
+        merchant = Merchant.objects.select_related('user', 'plan').filter(merch_id=merch_id).first()
+        if not merchant:
+            return Response({"error": "Merchant account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if amount <= Decimal('0'):
+            return Response({"error": "Please enter a withdrawal amount greater than ₱0."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amount > (merchant.wallet_bal or Decimal('0.00')):
+            return Response({
+                "error": f"Insufficient wallet balance (Available: ₱{float(merchant.wallet_bal or 0):,.2f})."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not account_number or not account_name:
+            return Response({"error": f"Please provide your {channel} account number and registered account name."}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_pro = merchant.plan_id == 2 or 'pro' in (merchant.plan.plan_name or '').lower()
+        fee_rate = Decimal('0.00') if is_pro else Decimal('0.10')
+        fee_deducted = (amount * fee_rate).quantize(Decimal('0.01'))
+        net_payout = (amount - fee_deducted).quantize(Decimal('0.01'))
+
+        w_req = WithdrawalReq.objects.create(
+            merchant=merchant,
+            amount=amount,
+            channel=channel,
+            gcash_num=account_number,
+            account_name=account_name,
+            fee_deducted=fee_deducted,
+            net_payout=net_payout,
+            withdrawal_status='Pending',
+        )
+
+        log_system_activity(
+            "Payout",
+            f"Withdrawal request PO-{w_req.withdrawal_id} from {merchant.bus_name}: ₱{float(amount):,.2f} ({channel} {account_number}, Net: ₱{float(net_payout):,.2f}).",
+            target_user=merchant.user,
+            merchant=merchant,
+            withdrawal=w_req,
+        )
+
+        return Response({
+            "message": f"Withdrawal request of ₱{float(amount):,.2f} submitted! Net transfer after {'0% Pro' if is_pro else '10% Free-Tier'} fee: ₱{float(net_payout):,.2f}.",
+            "withdrawal_id": w_req.withdrawal_id,
+        }, status=status.HTTP_201_CREATED)
+
+
+class UserNotificationsFeedView(APIView):
+    """
+    Returns both UserNotifications and Broadcast Announcements for Consumers, Merchants, and Food Banks.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        email = request.GET.get('email', '').strip()
+        role = request.GET.get('role', 'Consumer').strip()
+        profile_id = request.GET.get('profile_id', '').strip()
+
+        user = None
+        if email:
+            user = User.objects.filter(user_email__iexact=email).first()
+        if not user and profile_id.isdigit():
+            if role.lower() == 'merchant':
+                m = Merchant.objects.select_related('user').filter(merch_id=int(profile_id)).first()
+                user = m.user if m else None
+            elif role.lower() == 'consumer':
+                c = Consumer.objects.select_related('user').filter(cons_id=int(profile_id)).first()
+                user = c.user if c else None
+            elif role.lower() == 'foodbank':
+                f = FoodBank.objects.select_related('user').filter(org_id=int(profile_id)).first()
+                user = f.user if f else None
+
+        notifications_data = []
+        if user:
+            for n in UserNotification.objects.filter(user=user).order_by('-created_at')[:30]:
+                notifications_data.append({
+                    "id": f"UN-{n.notif_id}",
+                    "type": "Activity",
+                    "title": "Account & Order Update",
+                    "message": n.message,
+                    "is_read": n.is_read,
+                    "timestamp": n.created_at.strftime('%b %d, %Y • %I:%M %p') if n.created_at else "Just now",
+                })
+
+        broadcasts = AdminNotification.objects.filter(admin_notif_type__startswith='Broadcast').order_by('-pk')[:15]
+        for b in broadcasts:
+            audience = b.admin_notif_type.replace('Broadcast:', '').strip()
+            if 'all' in audience.lower() or role.lower() in audience.lower():
+                parts = (b.message or '').split(' || ', 1)
+                title = parts[0] if len(parts) > 1 else 'System Announcement'
+                body = parts[1] if len(parts) > 1 else b.message
+                notifications_data.append({
+                    "id": f"BC-{b.pk}",
+                    "type": "Announcement",
+                    "title": title,
+                    "message": body,
+                    "audience": audience,
+                    "is_read": False,
+                    "timestamp": b.created_at.strftime('%b %d, %Y • %I:%M %p') if getattr(b, 'created_at', None) else "Official Broadcast",
+                })
+
+        return Response({"notifications": notifications_data}, status=status.HTTP_200_OK)
 
 
 class UserRegistrationView(APIView):
@@ -349,7 +632,6 @@ class UserRegistrationView(APIView):
             role = user.user_role.lower()
             address = request.data.get('address', 'Cebu City, Cebu')
 
-            # Save GPS coordinates to Location table for Haversine matching
             try:
                 lat = float(request.data.get('latitude') or 10.3157)
                 lng = float(request.data.get('longitude') or 123.8854)
@@ -374,6 +656,11 @@ class UserRegistrationView(APIView):
                     phone_num=phone,
                     address=address
                 )
+                log_system_activity(
+                    "Registration",
+                    f"New Consumer registered: {full_name} ({user.user_email}).",
+                    target_user=user,
+                )
             elif role == 'foodbank':
                 org_name = request.data.get('org_name', 'Community Food Bank')
                 contact_person = request.data.get('contact_person', '')
@@ -392,10 +679,10 @@ class UserRegistrationView(APIView):
                     accreditation_path=saved_path,
                     status='Pending'
                 )
-                AdminNotification.objects.create(
-                    user_id=1,
-                    admin_notif_type='KYB',
-                    message=f"New Food Bank registration: {org_name} awaiting verification."
+                log_system_activity(
+                    "KYB",
+                    f"New Food Bank registration: {org_name} awaiting verification.",
+                    target_user=user,
                 )
 
             return Response({
@@ -415,9 +702,9 @@ class MerchantRegistrationView(APIView):
         serializer = MerchantRegistrationSerializer(data=request.data)
 
         if serializer.is_valid():
+            # Inputted bus_name & address from the merchant are stored as the authoritative account name
             merchant = serializer.save()
 
-            # Save Merchant GPS coordinates to Location table for Haversine matching
             try:
                 lat = float(request.data.get('latitude') or 10.3157)
                 lng = float(request.data.get('longitude') or 123.8854)
@@ -444,11 +731,11 @@ class MerchantRegistrationView(APIView):
             merchant.ocr_confidence = ocr_results.get('confidence_score', 0.0)
             merchant.save()
 
-            AdminNotification.objects.create(
-                user_id=1,
-                admin_notif_type='KYB',
-                message=f"New merchant application: {merchant.bus_name}. OCR Confidence: {merchant.ocr_confidence}%",
-                merchant=merchant
+            log_system_activity(
+                "KYB",
+                f"New merchant application: {merchant.bus_name}. OCR Confidence: {merchant.ocr_confidence}%",
+                target_user=merchant.user,
+                merchant=merchant,
             )
 
             return Response({
@@ -487,6 +774,12 @@ class DocumentResubmissionView(APIView):
             fb.status_reason = ''
             fb.save()
 
+            log_system_activity(
+                "KYB",
+                f"Food Bank {fb.org_name} resubmitted accreditation document for review.",
+                target_user=fb.user,
+            )
+
             return Response({
                 "message": "Document resubmitted successfully! Your account is now back under Admin review."
             }, status=status.HTTP_200_OK)
@@ -513,11 +806,11 @@ class DocumentResubmissionView(APIView):
         merchant.is_verified = False
         merchant.save()
 
-        AdminNotification.objects.create(
-            user_id=1,
-            admin_notif_type='KYB',
-            message=f"Resubmitted/Renewed permit from {merchant.bus_name}. OCR Confidence: {merchant.ocr_confidence}%",
-            merchant=merchant
+        log_system_activity(
+            "KYB",
+            f"Resubmitted/Renewed permit from {merchant.bus_name}. OCR Confidence: {merchant.ocr_confidence}%",
+            target_user=merchant.user,
+            merchant=merchant,
         )
 
         return Response({
@@ -545,7 +838,6 @@ class AdminMerchantApprovalView(APIView):
         role = request.data.get('role', 'Merchant')
         reason = request.data.get('reason', '')
 
-        # 1. CONSUMER ACTIONS
         if role == 'Consumer':
             try:
                 consumer = Consumer.objects.select_related('user').get(cons_id=merch_id)
@@ -566,11 +858,15 @@ class AdminMerchantApprovalView(APIView):
                     f"Hello {consumer.cons_fullname},\n\nYour account has been suspended due to: {reason}.\n"
                     f"If you wish to appeal this decision, please submit an appeal here: {appeal_link}"
                 )
+                log_system_activity(
+                    "Compliance",
+                    f"Consumer CID-{consumer.cons_id} ({consumer.cons_fullname}) suspended: {reason}.",
+                    target_user=consumer.user,
+                )
                 return Response({"message": f"Consumer {consumer.cons_fullname} has been suspended."}, status=status.HTTP_200_OK)
 
             return Response({"error": "Invalid Consumer action"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. FOOD BANK ACTIONS
         if role == 'FoodBank':
             try:
                 fb = FoodBank.objects.select_related('user').get(org_id=merch_id)
@@ -588,6 +884,11 @@ class AdminMerchantApprovalView(APIView):
                     "ReServe Food Bank Approved",
                     f"Hello {fb.org_name},\n\nYour organization has been verified and approved on ReServe!"
                 )
+                log_system_activity(
+                    "Approved",
+                    f"Food Bank FB-{fb.org_id} ({fb.org_name}) approved and activated.",
+                    target_user=fb.user,
+                )
                 return Response({"message": f"Food Bank {fb.org_name} approved."}, status=status.HTTP_200_OK)
 
             elif action == 'reject':
@@ -600,6 +901,11 @@ class AdminMerchantApprovalView(APIView):
                     "Action Required: ReServe Food Bank Verification",
                     f"Hello {fb.org_name},\n\nYour accreditation document could not be verified due to: {reason}.\n"
                     f"Please log into your account or use this link to upload a clearer copy: {reupload_link}"
+                )
+                log_system_activity(
+                    "Compliance",
+                    f"Food Bank FB-{fb.org_id} ({fb.org_name}) requested to resubmit accreditation: {reason}.",
+                    target_user=fb.user,
                 )
                 return Response({"message": f"Food Bank {fb.org_name} flagged for resubmission."}, status=status.HTTP_200_OK)
 
@@ -616,6 +922,11 @@ class AdminMerchantApprovalView(APIView):
                     f"Hello {fb.org_name},\n\nYour account has been suspended due to: {reason}.\n"
                     f"To reactivate your account, submit an appeal here: {appeal_link}"
                 )
+                log_system_activity(
+                    "Compliance",
+                    f"Food Bank FB-{fb.org_id} ({fb.org_name}) suspended: {reason}.",
+                    target_user=fb.user,
+                )
                 return Response({"message": f"Food Bank {fb.org_name} suspended."}, status=status.HTTP_200_OK)
 
             elif action == 'notify':
@@ -624,11 +935,15 @@ class AdminMerchantApprovalView(APIView):
                     "Important Notice from ReServe Admin",
                     f"Hello {fb.org_name},\n\nAdmin Notice: {reason}"
                 )
+                log_system_activity(
+                    "Compliance",
+                    f"Admin Notice to {fb.org_name}: {reason}",
+                    target_user=fb.user,
+                )
                 return Response({"message": "Notification sent to Food Bank."}, status=status.HTTP_200_OK)
 
             return Response({"error": "Invalid Food Bank action"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 3. MERCHANT ACTIONS
         try:
             merchant = Merchant.objects.select_related('user').get(merch_id=merch_id)
         except Merchant.DoesNotExist:
@@ -642,16 +957,12 @@ class AdminMerchantApprovalView(APIView):
                 current_ocr = {}
 
             if ocr_edits:
+                # Save OCR comparison data ONLY to ocr_extracted_text (NEVER overwrite merchant.bus_name or merchant.address)
                 for key in ['business_name', 'permit_number', 'lgu_anchor', 'business_address', 'nature_of_business', 'calendar_year', 'representative']:
                     if key in ocr_edits:
                         current_ocr[key] = ocr_edits[key]
                 merchant.ocr_extracted_text = json.dumps(current_ocr)
 
-                # Sync edited business name & address directly to the Merchant record if valid
-                if ocr_edits.get('business_name') and ocr_edits['business_name'] != 'Not Detected':
-                    merchant.bus_name = ocr_edits['business_name']
-                if ocr_edits.get('business_address') and ocr_edits['business_address'] != 'Not Detected':
-                    merchant.address = ocr_edits['business_address']
                 if ocr_edits.get('expiry_date'):
                     merchant.bus_expiry_date = ocr_edits['expiry_date']
 
@@ -662,11 +973,11 @@ class AdminMerchantApprovalView(APIView):
             merchant.user.is_banned = False
             merchant.user.save()
 
-            AdminNotification.objects.create(
-                user_id=1,
-                admin_notif_type='Approved',
-                message=f"Merchant MID-{merchant.merch_id} ({merchant.bus_name}) approved by Admin.",
-                merchant=merchant
+            log_system_activity(
+                "Approved",
+                f"Merchant MID-{merchant.merch_id} ({merchant.bus_name}) approved by Admin.",
+                target_user=merchant.user,
+                merchant=merchant,
             )
 
             send_compliance_email(
@@ -675,7 +986,7 @@ class AdminMerchantApprovalView(APIView):
                 f"Hello {merchant.bus_name},\n\nYour business permit has been verified and your account is now Active!"
             )
             return Response({"message": f"Merchant {merchant.bus_name} has been approved successfully."}, status=status.HTTP_200_OK)
-        
+
         elif action == 'reject':
             merchant.is_verified = False
             merchant.status = 'Resubmit Required'
@@ -688,6 +999,12 @@ class AdminMerchantApprovalView(APIView):
                 "Action Required: ReServe Business Permit Verification",
                 f"Hello {merchant.bus_name},\n\nYour application requires attention due to: {reason}.\n"
                 f"Your registration details have been saved. Please log in or click here to upload a new document copy: {reupload_link}"
+            )
+            log_system_activity(
+                "Compliance",
+                f"Merchant MID-{merchant.merch_id} ({merchant.bus_name}) requested to resubmit permit: {reason}.",
+                target_user=merchant.user,
+                merchant=merchant,
             )
             return Response({"message": f"Merchant {merchant.bus_name} notified to resubmit document."}, status=status.HTTP_200_OK)
 
@@ -706,6 +1023,12 @@ class AdminMerchantApprovalView(APIView):
                 f"Hello {merchant.bus_name},\n\nYour merchant account has been suspended. Reason: {reason}.\n"
                 f"If you wish to appeal and reactivate your account, click here: {appeal_link}"
             )
+            log_system_activity(
+                "Compliance",
+                f"Merchant MID-{merchant.merch_id} ({merchant.bus_name}) suspended: {reason}.",
+                target_user=merchant.user,
+                merchant=merchant,
+            )
             return Response({"message": f"Merchant {merchant.bus_name} has been suspended."}, status=status.HTTP_200_OK)
 
         elif action == 'notify':
@@ -715,11 +1038,11 @@ class AdminMerchantApprovalView(APIView):
                 merchant.status_reason = reason
                 merchant.save()
 
-            AdminNotification.objects.create(
-                user_id=1,
-                admin_notif_type='Compliance',
-                message=f"Notice sent to {merchant.bus_name}: {reason}",
-                merchant=merchant
+            log_system_activity(
+                "Compliance",
+                f"Compliance Notice to {merchant.bus_name}: {reason}",
+                target_user=merchant.user,
+                merchant=merchant,
             )
             send_compliance_email(
                 merchant.user.user_email,
@@ -732,30 +1055,198 @@ class AdminMerchantApprovalView(APIView):
         return Response({"error": "Invalid action parameter."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# --- LIVE JSON API ENDPOINTS FOR MODALS & ADMIN PROFILE ---
+def fetch_dynamic_records(app_labels, filter_kwargs=None, limit=15):
+    records = []
+    for label in app_labels:
+        try:
+            app_config = apps.get_app_config(label)
+            for model in app_config.get_models():
+                qs = model.objects.all()
+                if filter_kwargs:
+                    valid_filters = {}
+                    model_fields = [f.name for f in model._meta.get_fields()]
+                    for k, v in filter_kwargs.items():
+                        if k in model_fields:
+                            valid_filters[k] = v
+                    if valid_filters:
+                        qs = qs.filter(**valid_filters)
+                    else:
+                        continue
+
+                for obj in qs.order_by('-pk')[:limit]:
+                    pk_val = getattr(obj, obj._meta.pk.name, '')
+
+                    title = None
+                    for field in ['prod_name', 'food_name', 'item_name', 'title', 'listing_name', 'name', 'description']:
+                        if hasattr(obj, field) and getattr(obj, field):
+                            title = str(getattr(obj, field))
+                            break
+                    if not title and hasattr(obj, 'listing') and getattr(obj, 'listing'):
+                        listing_obj = getattr(obj, 'listing')
+                        if hasattr(listing_obj, 'listing') and hasattr(listing_obj.listing, 'product'):
+                            title = listing_obj.listing.product.prod_name
+                        else:
+                            for f in ['prod_name', 'food_name', 'item_name', 'title', 'name']:
+                                if hasattr(listing_obj, f):
+                                    title = str(getattr(listing_obj, f))
+                                    break
+
+                    est_name = None
+                    if hasattr(obj, 'merchant') and getattr(obj, 'merchant'):
+                        est_name = getattr(obj.merchant, 'bus_name', str(obj.merchant))
+                    elif hasattr(obj, 'listing') and getattr(obj, 'listing'):
+                        l_obj = getattr(obj, 'listing')
+                        if hasattr(l_obj, 'merchant'):
+                            est_name = getattr(l_obj.merchant, 'bus_name', '')
+                        elif hasattr(l_obj, 'listing') and hasattr(l_obj.listing, 'product'):
+                            est_name = getattr(l_obj.listing.product.merchant, 'bus_name', '')
+
+                    buyer_name = None
+                    if hasattr(obj, 'consumer') and getattr(obj, 'consumer'):
+                        buyer_name = getattr(obj.consumer, 'cons_fullname', str(obj.consumer))
+                    elif hasattr(obj, 'foodbank') and getattr(obj, 'foodbank'):
+                        buyer_name = getattr(obj.foodbank, 'org_name', str(obj.foodbank))
+                    elif hasattr(obj, 'food_bank') and getattr(obj, 'food_bank'):
+                        buyer_name = getattr(obj.food_bank, 'org_name', str(obj.food_bank))
+
+                    amount_str = "Donation"
+                    for field in ['downpayment_amount', 'total_amount', 'amount', 'discounted_price', 'price', 'orig_price']:
+                        if hasattr(obj, field) and getattr(obj, field) is not None:
+                            val = getattr(obj, field)
+                            try:
+                                amount_str = f"₱{float(val):,.2f}"
+                            except Exception:
+                                amount_str = str(val)
+                            break
+                    if amount_str == "Donation":
+                        for qfield in ['order_qty', 'quantity', 'qty', 'weight_kg']:
+                            if hasattr(obj, qfield) and getattr(obj, qfield) is not None:
+                                amount_str = f"{getattr(obj, qfield)} qty/kg"
+                                break
+
+                    status_val = "Active"
+                    for sfield in ['order_status', 'status', 'claim_status', 'listing_status', 'withdrawal_status']:
+                        if hasattr(obj, sfield) and getattr(obj, sfield):
+                            status_val = str(getattr(obj, sfield))
+                            break
+
+                    date_str = datetime.date.today().strftime('%Y-%m-%d')
+                    for dfield in ['ordered_at', 'created_at', 'order_date', 'date_created', 'claimed_at', 'pickup_time', 'expiry_date']:
+                        if hasattr(obj, dfield) and getattr(obj, dfield):
+                            dval = getattr(obj, dfield)
+                            if hasattr(dval, 'strftime'):
+                                date_str = dval.strftime('%Y-%m-%d %I:%M %p')
+                            else:
+                                date_str = str(dval)[:16]
+                            break
+
+                    prefix = label[:3].upper()
+                    records.append({
+                        'id': f"{prefix}-{pk_val}",
+                        'title': title or f"{model.__name__} #{pk_val}",
+                        'establishment': est_name or "Partner Merchant",
+                        'buyer': buyer_name or "Verified User",
+                        'date': date_str,
+                        'amount': amount_str,
+                        'status': status_val,
+                    })
+        except Exception:
+            continue
+    return records[:limit]
+
 
 def admin_user_transactions_api(request, role, account_id):
-    """
-    Returns live transactions/listings/donations for a specific Consumer, Merchant, or FoodBank.
-    """
     role_clean = role.lower()
     records = []
 
-    if role_clean == 'consumer':
-        records = fetch_dynamic_records(['transactions'], {'consumer_id': account_id}, limit=10)
-    elif role_clean == 'merchant':
-        records = fetch_dynamic_records(['transactions', 'listings', 'donations'], {'merchant_id': account_id}, limit=10)
+    if role_clean in ('consumer', 'merchant'):
+        if role_clean == 'consumer':
+            orders = OrderReservation.objects.select_related(
+                'consumer',
+                'listing__listing__product__merchant',
+                'listing__listing__product__unit'
+            ).filter(consumer_id=account_id).order_by('-ordered_at', 'order_id')[:40]
+        else:
+            orders = OrderReservation.objects.select_related(
+                'consumer',
+                'listing__listing__product__merchant',
+                'listing__listing__product__unit'
+            ).filter(listing__listing__product__merchant_id=account_id).order_by('-ordered_at', 'order_id')[:40]
+
+        grouped = {}
+        for o in orders:
+            b_code = str(o.qr_voucher_code or f"ORD-{o.order_id}").split("-")[0]
+            comm = o.listing
+            saf = comm.listing if comm else None
+            prod = saf.product if saf else None
+            merch = prod.merchant if prod else None
+
+            u_price = Decimal(str(comm.discounted_price if comm else 0))
+            o_price = Decimal(str(comm.orig_price if comm and comm.orig_price else u_price))
+            line_tot = (u_price * Decimal(o.order_qty)).quantize(Decimal('0.01'))
+            dep = Decimal(str(o.downpayment_amount or 0)).quantize(Decimal('0.01'))
+            rem = max(Decimal('0.00'), line_tot - dep)
+
+            item_entry = {
+                "name": prod.prod_name if prod else f"Item #{o.order_id}",
+                "qty": o.order_qty,
+                "unit_price": f"₱{float(u_price):,.2f}",
+                "orig_price": f"₱{float(o_price):,.2f}",
+                "subtotal": f"₱{float(line_tot):,.2f}",
+            }
+
+            if b_code not in grouped:
+                grouped[b_code] = {
+                    "id": b_code,
+                    "items": [item_entry],
+                    "establishment": merch.bus_name if merch else "Partner Merchant",
+                    "address": merch.address if merch and merch.address else "Cebu City",
+                    "buyer": o.consumer.cons_fullname if o.consumer else "Consumer",
+                    "buyer_email": o.consumer.user.user_email if (o.consumer and o.consumer.user) else "",
+                    "date": timezone.localtime(o.ordered_at).strftime('%b %d, %Y • %I:%M %p') if o.ordered_at else 'N/A',
+                    "pickup_deadline": timezone.localtime(saf.estimated_expiry).strftime('%b %d, %Y • %I:%M %p') if (saf and saf.estimated_expiry) else 'Standard Window',
+                    "total_dec": line_tot,
+                    "dep_dec": dep,
+                    "rem_dec": rem,
+                    "status": o.order_status,
+                }
+            else:
+                g = grouped[b_code]
+                g["items"].append(item_entry)
+                g["total_dec"] += line_tot
+                g["dep_dec"] += dep
+                g["rem_dec"] += rem
+
+        for b_code, g in grouped.items():
+            it_list = g["items"]
+            title_str = (
+                f"{it_list[0]['name']} (x{it_list[0]['qty']})"
+                if len(it_list) == 1
+                else f"{it_list[0]['name']} +{len(it_list) - 1} more"
+            )
+            records.append({
+                "id": b_code,
+                "title": title_str,
+                "items_breakdown": it_list,
+                "establishment": g["establishment"],
+                "address": g["address"],
+                "buyer": g["buyer"],
+                "buyer_email": g["buyer_email"],
+                "date": g["date"],
+                "pickup_deadline": g["pickup_deadline"],
+                "total_value": f"₱{float(g['total_dec']):,.2f}",
+                "deposit_paid": f"₱{float(g['dep_dec']):,.2f}",
+                "remaining_balance": f"₱{float(g['rem_dec']):,.2f}",
+                "amount": f"₱{float(g['total_dec']):,.2f} (10% Dep: ₱{float(g['dep_dec']):,.2f})",
+                "status": g["status"],
+            })
     elif role_clean == 'foodbank':
-        records = fetch_dynamic_records(['donations'], {'foodbank_id': account_id, 'food_bank_id': account_id}, limit=10)
+        records = fetch_dynamic_records(['donations'], {'foodbank_id': account_id, 'food_bank_id': account_id}, limit=15)
 
     return JsonResponse({'transactions': records})
 
-
 @csrf_exempt
 def update_admin_profile_api(request):
-    """
-    Updates the Super Admin's email address in the User database table.
-    """
     if request.method == 'POST':
         try:
             body = json.loads(request.body)
@@ -770,19 +1261,13 @@ def update_admin_profile_api(request):
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
 
-# --- CUSTOM ADMIN GUI VIEWS & ACTION API ---
-
 def get_base_admin_context(active_page):
-    """
-    Provides the shared header context (notifications, pending count, admin email, active nav tab)
-    for base_admin.html across all 6 Admin pages.
-    """
     admin_user = User.objects.filter(user_role='Admin').first()
     return {
         'active_page': active_page,
         'pending_merchants': Merchant.objects.filter(status='Pending').count(),
-        'recent_notifications': AdminNotification.objects.select_related('merchant').order_by('-pk')[:6],
-        'admin_email': admin_user.user_email if admin_user else 'admin@reserve.org',
+        'recent_notifications': AdminNotification.objects.select_related('merchant').order_by('-pk')[:10],
+        'admin_email': admin_user.user_email if admin_user else 'reserve.org.com@gmail.com',
     }
 
 
@@ -872,89 +1357,141 @@ def admin_users(request):
 
 
 def admin_food_listing(request):
+    """
+    Displays all food listings categorized by Active vs. Flagged/Expired, with full expiry date & time,
+    plus clickable Merchant Profile cards displaying active listing counts and full merchant histories.
+    """
     context = get_base_admin_context('food-listing')
     merchant_filter = request.GET.get('merchant', '').replace('MID-', '').strip()
-    filter_kwargs = {'merchant_id': int(merchant_filter)} if merchant_filter.isdigit() else None
+    selected_merch_id = int(merchant_filter) if merchant_filter.isdigit() else None
+
+    from listings.models import PerishableProduct, ListingSafety, ListingCommerce
+
+    now = timezone.now()
+    products_qs = PerishableProduct.objects.select_related('category', 'unit', 'merchant__user', 'merchant__plan').order_by('-prod_id')
+    if selected_merch_id:
+        products_qs = products_qs.filter(merchant_id=selected_merch_id)
 
     listings_list = []
-    flagged_count = 0
-    claimed_count = 0
+    active_listings_count = 0
+    flagged_listings_count = 0
+    expired_listings_count = 0
 
-    try:
-        app_config = apps.get_app_config('listings')
-        for model in app_config.get_models():
-            qs = model.objects.all()
-            if filter_kwargs and 'merchant' in [f.name for f in model._meta.get_fields()]:
-                qs = qs.filter(merchant_id=filter_kwargs['merchant_id'])
+    # Track per-merchant active/total counts
+    merch_listing_stats = {}
 
-            for obj in qs.order_by('-pk')[:100]:
-                pk_val = getattr(obj, obj._meta.pk.name)
-                title = None
-                for f in ['food_name', 'item_name', 'title', 'listing_name', 'name']:
-                    if hasattr(obj, f) and getattr(obj, f):
-                        title = str(getattr(obj, f))
-                        break
-                if not title:
-                    continue
+    all_products = list(PerishableProduct.objects.select_related('category', 'unit', 'merchant__user', 'merchant__plan').order_by('-prod_id'))
+    safety_records = {
+        s.product_id: s
+        for s in ListingSafety.objects.select_related('commerce').all()
+    }
 
-                desc = getattr(obj, 'description', None) or getattr(obj, 'food_desc', None) or 'Fresh surplus food item listed for community rescue.'
-                qty = getattr(obj, 'quantity', None) or getattr(obj, 'qty', None) or getattr(obj, 'stock', 1)
-                orig_p = getattr(obj, 'orig_price', None) or getattr(obj, 'original_price', None) or getattr(obj, 'price', 0)
-                disc_p = getattr(obj, 'discounted_price', None) or getattr(obj, 'disc_price', None) or getattr(obj, 'price', 0)
-                cat = getattr(obj, 'category', None) or getattr(obj, 'food_category', None) or getattr(obj, 'food_type', None)
+    for prod in all_products:
+        m_id = prod.merchant_id
+        if m_id not in merch_listing_stats:
+            merch_listing_stats[m_id] = {'active': 0, 'flagged_expired': 0, 'total': 0, 'items': []}
 
-                est_name = "Verified Partner"
-                est_addr = "Cebu City, Philippines"
-                if hasattr(obj, 'merchant') and getattr(obj, 'merchant'):
-                    m_obj = getattr(obj, 'merchant')
-                    est_name = getattr(m_obj, 'bus_name', est_name)
-                    est_addr = getattr(m_obj, 'address', None) or est_addr
-                    if not cat:
-                        cat = getattr(m_obj, 'merch_type', 'Surplus')
+        s_rec = safety_records.get(prod.prod_id)
+        comm = getattr(s_rec, 'commerce', None) if s_rec else None
 
-                status_val = str(getattr(obj, 'status', None) or getattr(obj, 'listing_status', 'Active'))
+        status_val = comm.status if comm else 'Active'
+        qty_val = comm.qty_available if comm else 1
+        orig_p = float(comm.orig_price) if comm else 0.0
+        disc_p = float(comm.current_price or comm.discounted_price) if comm else 0.0
+
+        expiry_dt = s_rec.estimated_expiry if s_rec else None
+        if expiry_dt:
+            if timezone.is_naive(expiry_dt):
+                expiry_dt = timezone.make_aware(expiry_dt)
+            if expiry_dt <= now and status_val == 'Active':
+                status_val = 'Expired'
+            expiry_str = timezone.localtime(expiry_dt).strftime('%b %d, %Y %I:%M %p')
+            date_str = timezone.localtime(expiry_dt).strftime('%Y-%m-%d')
+        else:
+            expiry_str = 'Not Set'
+            date_str = datetime.date.today().strftime('%Y-%m-%d')
+
+        is_flagged_or_expired = ('flag' in status_val.lower()) or ('expir' in status_val.lower()) or (qty_val <= 0 and status_val != 'Active')
+        category_bucket = 'flagged_expired' if is_flagged_or_expired else 'active'
+
+        merch_listing_stats[m_id]['total'] += 1
+        if category_bucket == 'active':
+            merch_listing_stats[m_id]['active'] += 1
+        else:
+            merch_listing_stats[m_id]['flagged_expired'] += 1
+
+        item_dict = {
+            'raw_id': prod.prod_id,
+            'id': f"FL-{prod.prod_id}",
+            'title': prod.prod_name,
+            'description': prod.prod_desc or 'Fresh surplus food item listed for community rescue.',
+            'establishment': prod.merchant.bus_name if prod.merchant else 'Verified Partner',
+            'merchant_id': m_id,
+            'address': prod.merchant.address if prod.merchant and prod.merchant.address else 'Cebu City, Philippines',
+            'date': date_str,
+            'expiry': expiry_str,
+            'temperature': f"{float(s_rec.posted_temp):.1f}°C" if s_rec and s_rec.posted_temp else "28.0°C",
+            'quantity': f"{qty_val} {prod.unit.unit_name if prod.unit else 'pcs'}",
+            'orig_price': f"₱{orig_p:,.2f}",
+            'disc_price': f"₱{disc_p:,.2f}",
+            'category': prod.category.category_name if prod.category else (prod.merchant.merch_type if prod.merchant else 'Surplus'),
+            'status': status_val,
+            'bucket': category_bucket,
+            'image_url': prod.image_path if str(prod.image_path).startswith('http') else (f"/media/{prod.image_path}" if prod.image_path else ""),
+        }
+        merch_listing_stats[m_id]['items'].append(item_dict)
+
+        if not selected_merch_id or selected_merch_id == m_id:
+            listings_list.append(item_dict)
+            if category_bucket == 'active':
+                active_listings_count += 1
+            else:
                 if 'flag' in status_val.lower():
-                    flagged_count += 1
-                if 'claim' in status_val.lower() or 'sold' in status_val.lower() or 'complet' in status_val.lower():
-                    claimed_count += 1
+                    flagged_listings_count += 1
+                else:
+                    expired_listings_count += 1
 
-                date_str = datetime.date.today().strftime('%Y-%m-%d')
-                for df in ['created_at', 'date_posted', 'listing_date', 'expiry_date']:
-                    if hasattr(obj, df) and getattr(obj, df):
-                        dval = getattr(obj, df)
-                        date_str = dval.strftime('%Y-%m-%d') if hasattr(dval, 'strftime') else str(dval)[:10]
-                        break
+    # Build clickable Merchant Profiles cards with ratings & histories
+    merchant_profiles = []
+    for m in Merchant.objects.select_related('user', 'plan').all().order_by('-merch_id'):
+        m_stats = merch_listing_stats.get(m.merch_id, {'active': 0, 'flagged_expired': 0, 'total': 0, 'items': []})
+        reviews_qs = RatingReview.objects.filter(surplus_listing__listing__product__merchant=m)
+        rev_count = reviews_qs.count()
+        avg_score = reviews_qs.aggregate(avg=Avg('rating_score'))['avg'] or 0.0
 
-                expiry_str = str(getattr(obj, 'expiry_date', None) or getattr(obj, 'pickup_until', None) or date_str)[:16]
-                img_path = getattr(obj, 'image_path', None) or getattr(obj, 'food_image', None) or getattr(obj, 'photo', '')
+        merchant_profiles.append({
+            'merch_id': m.merch_id,
+            'id_label': f"MID-{m.merch_id}",
+            'bus_name': m.bus_name,
+            'merch_type': m.merch_type,
+            'address': m.address or 'Cebu City, Cebu',
+            'contact_person': m.contact_person or 'Owner',
+            'phone': m.phone or 'N/A',
+            'hotline': m.hotline or 'N/A',
+            'email': m.user.user_email,
+            'status': m.status,
+            'plan_name': m.plan.plan_name if m.plan else 'Basic',
+            'wallet_bal': f"₱{float(m.wallet_bal or 0):,.2f}",
+            'expiry_date': m.bus_expiry_date.strftime('%Y-%m-%d') if m.bus_expiry_date else 'N/A',
+            'permit_url': f"/media/{m.bus_permit_path}" if m.bus_permit_path else '',
+            'active_count': m_stats['active'],
+            'flagged_expired_count': m_stats['flagged_expired'],
+            'total_count': m_stats['total'],
+            'avg_rating': f"{float(avg_score):.1f}",
+            'review_count': rev_count,
+            'items_json': json.dumps(m_stats['items']),
+        })
 
-                listings_list.append({
-                    'raw_id': pk_val,
-                    'id': f"FL-{pk_val}",
-                    'model_name': model.__name__,
-                    'title': title,
-                    'description': desc,
-                    'establishment': est_name,
-                    'address': est_addr,
-                    'date': date_str,
-                    'expiry': expiry_str,
-                    'quantity': qty,
-                    'orig_price': f"₱{float(orig_p):,.2f}" if orig_p else "₱0.00",
-                    'disc_price': f"₱{float(disc_p):,.2f}" if disc_p else "Donation",
-                    'category': cat or 'Surplus',
-                    'status': status_val,
-                    'image_url': f"/media/{img_path}" if img_path else "",
-                })
-    except Exception as e:
-        print(f"Listings fetch notice: {e}")
+    claimed_count = OrderReservation.objects.filter(order_status='Completed').count()
 
-    tx_claimed = len(fetch_dynamic_records(['transactions'], limit=500))
     context.update({
         'listings': listings_list,
-        'active_listings_count': len([l for l in listings_list if l['status'].lower() == 'active']),
+        'merchant_profiles': merchant_profiles,
+        'selected_merch_id': selected_merch_id,
+        'active_listings_count': active_listings_count,
         'active_stores_count': Merchant.objects.filter(status='Active').count(),
-        'claimed_produce_count': max(claimed_count, tx_claimed),
-        'flagged_listings_count': flagged_count,
+        'claimed_produce_count': claimed_count,
+        'flagged_listings_count': flagged_listings_count + expired_listings_count,
     })
     return render(request, 'admin_food_listing.html', context)
 
@@ -962,7 +1499,8 @@ def admin_food_listing(request):
 def admin_donations(request):
     context = get_base_admin_context('donations')
     fb_filter = request.GET.get('foodbank', '').replace('FB-', '').strip()
-    filter_kwargs = {'foodbank_id': int(fb_filter), 'food_bank_id': int(fb_filter)} if fb_filter.isdigit() else None
+    selected_fb_id = int(fb_filter) if fb_filter.isdigit() else None
+    filter_kwargs = {'foodbank_id': selected_fb_id, 'food_bank_id': selected_fb_id} if selected_fb_id else None
 
     raw_donations = fetch_dynamic_records(['donations'], filter_kwargs=filter_kwargs, limit=100)
     pending_requests = []
@@ -980,6 +1518,8 @@ def admin_donations(request):
 
     pending_fbs = FoodBank.objects.filter(status='Pending').select_related('user')
     for fb in pending_fbs:
+        if selected_fb_id and fb.org_id != selected_fb_id:
+            continue
         pending_requests.append({
             'raw_id': fb.org_id,
             'id': f"REQ-{fb.org_id}",
@@ -993,6 +1533,24 @@ def admin_donations(request):
             'contact': f"{fb.phone or 'N/A'} ({fb.contact_person or 'NGO Coordinator'})",
         })
 
+    # Build clickable Food Bank Profile cards for Visit Profile redirection
+    foodbank_profiles = []
+    for fb in FoodBank.objects.select_related('user').all().order_by('-org_id'):
+        foodbank_profiles.append({
+            'org_id': fb.org_id,
+            'id_label': f"FB-{fb.org_id}",
+            'org_name': fb.org_name,
+            'address': fb.address or 'Cebu City, Cebu',
+            'contact_person': fb.contact_person or 'Coordinator',
+            'phone': fb.phone or 'N/A',
+            'hotline': fb.hotline or 'N/A',
+            'email': fb.user.user_email,
+            'status': fb.status,
+            'total_received': float(fb.total_food_received or 0),
+            'permit_url': f"/media/{fb.accreditation_path}" if fb.accreditation_path else '',
+            'date': fb.user.created_at.strftime('%Y-%m-%d'),
+        })
+
     fb_received = FoodBank.objects.aggregate(total=Sum('total_food_received'))['total'] or Decimal('0.00')
     context.update({
         'total_hubs': FoodBank.objects.count(),
@@ -1002,55 +1560,64 @@ def admin_donations(request):
         'flagged_drops_count': flagged_drops,
         'pending_requests': pending_requests,
         'active_transfers': active_transfers,
+        'foodbank_profiles': foodbank_profiles,
+        'selected_fb_id': selected_fb_id,
     })
     return render(request, 'admin_donation_hub.html', context)
 
-
 def admin_payouts(request):
     context = get_base_admin_context('payouts')
-    merchants_with_bal = Merchant.objects.select_related('user').all().order_by('-wallet_bal', '-user__created_at')
     payout_rows = []
     pending_count = 0
     approved_count = 0
     processing_count = 0
 
-    try:
-        tx_app = apps.get_app_config('transactions')
-        for model in tx_app.get_models():
-            if 'payout' in model.__name__.lower() or 'withdraw' in model.__name__.lower():
-                for obj in model.objects.all().order_by('-pk')[:50]:
-                    pk_val = getattr(obj, obj._meta.pk.name)
-                    m_obj = getattr(obj, 'merchant', None)
-                    m_name = getattr(m_obj, 'bus_name', 'Partner Merchant') if m_obj else 'Partner Merchant'
-                    m_bal = getattr(m_obj, 'wallet_bal', Decimal('0.00')) if m_obj else Decimal('0.00')
-                    amt = getattr(obj, 'amount', None) or getattr(obj, 'payout_amount', m_bal)
-                    st = str(getattr(obj, 'status', 'Pending'))
-                    dval = getattr(obj, 'created_at', None) or getattr(obj, 'request_date', datetime.date.today())
-                    d_str = dval.strftime('%Y-%m-%d') if hasattr(dval, 'strftime') else str(dval)[:10]
+    withdrawals = WithdrawalReq.objects.select_related('merchant__user', 'merchant__plan').order_by('-withdrawal_id')
+    for w in withdrawals:
+        m = w.merchant
+        bal = float(m.wallet_bal or 0)
+        amt = float(w.amount or 0)
+        is_pro = m.plan_id == 2 or ('pro' in (m.plan.plan_name or '').lower() if m.plan else False)
+        fee = float(w.fee_deducted) if w.fee_deducted is not None else (0.0 if is_pro else round(amt * 0.10, 2))
+        net = float(w.net_payout) if w.net_payout is not None else round(amt - fee, 2)
+        st = w.withdrawal_status or 'Pending'
 
-                    if 'pend' in st.lower():
-                        pending_count += 1
-                    elif 'approv' in st.lower() or 'complete' in st.lower() or 'paid' in st.lower():
-                        approved_count += 1
-                    else:
-                        processing_count += 1
+        if 'pend' in st.lower():
+            pending_count += 1
+        elif 'approv' in st.lower() or 'settled' in st.lower():
+            approved_count += 1
+        else:
+            processing_count += 1
 
-                    payout_rows.append({
-                        'raw_id': pk_val,
-                        'id': f"PO-{pk_val}",
-                        'is_merchant_wallet': False,
-                        'merchant_name': m_name,
-                        'date': d_str,
-                        'current_balance': f"₱{float(m_bal):,.2f}",
-                        'requested_amount': f"₱{float(amt):,.2f}",
-                        'status': st,
-                    })
-    except Exception:
-        pass
+        payout_rows.append({
+            'raw_id': w.withdrawal_id,
+            'id': f"PO-{w.withdrawal_id}",
+            'is_merchant_wallet': False,
+            'merchant_id': f"MID-{m.merch_id}",
+            'merchant_name': m.bus_name,
+            'contact_person': m.contact_person or 'Owner',
+            'merchant_phone': m.phone or 'N/A',
+            'merchant_email': m.user.user_email,
+            'tier_name': 'Pro Tier (0% Fee)' if is_pro else 'Free Tier (10% Fee)',
+            'channel': w.channel or 'GCash',
+            'account_number': w.gcash_num or m.phone or '09170000000',
+            'account_name': w.account_name or m.contact_person or m.bus_name,
+            'date': w.created_at.strftime('%Y-%m-%d %I:%M %p') if w.created_at else m.user.created_at.strftime('%Y-%m-%d'),
+            'current_balance': f"₱{bal:,.2f}",
+            'requested_amount': f"₱{amt:,.2f}",
+            'fee_deducted': f"₱{fee:,.2f}",
+            'net_payout': f"₱{net:,.2f}",
+            'reference_number': w.reference_number or '',
+            'status': st,
+        })
 
     if not payout_rows:
+        merchants_with_bal = Merchant.objects.select_related('user', 'plan').all().order_by('-wallet_bal', '-user__created_at')
         for m in merchants_with_bal:
             bal = float(m.wallet_bal or 0)
+            is_pro = m.plan_id == 2
+            fee = 0.0 if is_pro else round(bal * 0.10, 2)
+            net = round(bal - fee, 2)
             st = 'Pending' if bal > 0 else 'Settled'
             if st == 'Pending':
                 pending_count += 1
@@ -1060,10 +1627,21 @@ def admin_payouts(request):
                 'raw_id': m.merch_id,
                 'id': f"PO-{m.merch_id}",
                 'is_merchant_wallet': True,
+                'merchant_id': f"MID-{m.merch_id}",
                 'merchant_name': m.bus_name,
+                'contact_person': m.contact_person or 'Owner',
+                'merchant_phone': m.phone or 'N/A',
+                'merchant_email': m.user.user_email,
+                'tier_name': 'Pro Tier (0% Fee)' if is_pro else 'Free Tier (10% Fee)',
+                'channel': 'GCash',
+                'account_number': m.phone or 'Not Set',
+                'account_name': m.contact_person or m.bus_name,
                 'date': m.user.created_at.strftime('%Y-%m-%d'),
                 'current_balance': f"₱{bal:,.2f}",
                 'requested_amount': f"₱{bal:,.2f}",
+                'fee_deducted': f"₱{fee:,.2f}",
+                'net_payout': f"₱{net:,.2f}",
+                'reference_number': '',
                 'status': st,
             })
 
@@ -1089,11 +1667,13 @@ def admin_announcements(request):
         parts = (b.message or '').split(' || ', 1)
         title = parts[0] if len(parts) > 1 else 'System Announcement'
         body = parts[1] if len(parts) > 1 else b.message
+        b_dt = timezone.localtime(b.created_at) if getattr(b, 'created_at', None) else timezone.now()
         broadcasts.append({
             'id': b.pk,
             'audience': audience,
             'title': title,
             'body': body,
+            'created_at_str': b_dt.strftime('%b %d, %Y • %I:%M %p'),
         })
 
     context['broadcasts'] = broadcasts
@@ -1130,21 +1710,31 @@ def admin_portal_action_api(request):
                 return JsonResponse({'message': 'Broadcast deleted.'})
 
         elif module == 'listing':
-            app_config = apps.get_app_config('listings')
-            for model in app_config.get_models():
-                qs = model.objects.filter(pk=raw_id)
-                if qs.exists():
-                    obj = qs.first()
-                    if action == 'delete':
-                        obj.delete()
-                        return JsonResponse({'message': 'Listing removed.'})
-                    elif action == 'flag':
-                        for sfield in ['status', 'listing_status']:
-                            if hasattr(obj, sfield):
-                                setattr(obj, sfield, 'Flagged')
-                                obj.save()
-                                break
-                        return JsonResponse({'message': 'Listing flagged.'})
+            from listings.models import PerishableProduct, ListingSafety
+            prod = PerishableProduct.objects.select_related('merchant__user').filter(prod_id=raw_id).first()
+            if prod:
+                if action == 'delete':
+                    prod_name = prod.prod_name
+                    merch_user = prod.merchant.user if prod.merchant else None
+                    prod.delete()
+                    log_system_activity(
+                        "Listing",
+                        f"Admin removed food listing '{prod_name}'.",
+                        target_user=merch_user,
+                    )
+                    return JsonResponse({'message': 'Listing removed.'})
+                elif action == 'flag':
+                    s_rec = ListingSafety.objects.select_related('commerce').filter(product=prod).first()
+                    if s_rec and hasattr(s_rec, 'commerce'):
+                        s_rec.commerce.status = 'Flagged'
+                        s_rec.commerce.save()
+                    log_system_activity(
+                        "Compliance",
+                        f"Your food listing '{prod.prod_name}' was flagged by Admin for review.",
+                        target_user=prod.merchant.user if prod.merchant else None,
+                        merchant=prod.merchant,
+                    )
+                    return JsonResponse({'message': 'Listing flagged.'})
             return JsonResponse({'message': 'Listing status updated.'})
 
         elif module == 'donation':
@@ -1176,30 +1766,76 @@ def admin_portal_action_api(request):
             return JsonResponse({'message': 'Donation status updated.'})
 
         elif module == 'payout':
-            is_wallet = data.get('is_merchant_wallet', True)
+            is_wallet = data.get('is_merchant_wallet', False)
+            reference_number = str(data.get('reference_number', '')).strip()
+            reject_reason = str(data.get('reason', 'Invalid account details')).strip()
+
+            if action == 'approve' and not reference_number:
+                return JsonResponse({'error': 'Please enter the GCash/Maya transfer reference number to confirm payout.'}, status=400)
+
             if is_wallet:
-                merchant = Merchant.objects.filter(merch_id=raw_id).first()
+                merchant = Merchant.objects.select_related('user').filter(merch_id=raw_id).first()
                 if merchant:
                     if action == 'approve':
                         paid_amt = merchant.wallet_bal
                         merchant.wallet_bal = Decimal('0.00')
                         merchant.save()
-                        AdminNotification.objects.create(
-                            user_id=1,
-                            admin_notif_type='Payout',
-                            message=f"Payout of ₱{paid_amt:,.2f} settled for {merchant.bus_name}.",
-                            merchant=merchant
+                        log_system_activity(
+                            "Payout",
+                            f"Payout of ₱{float(paid_amt):,.2f} settled for {merchant.bus_name} (Ref #: {reference_number}).",
+                            target_user=merchant.user,
+                            merchant=merchant,
+                        )
+                        send_compliance_email(
+                            merchant.user.user_email,
+                            "RESERVE Cebu - Payout Transferred!",
+                            f"Hello {merchant.bus_name},\n\nYour wallet payout of ₱{float(paid_amt):,.2f} has been transferred!\n"
+                            f"Transfer Reference Number: {reference_number}\n\nThank you for partnering with RESERVE Cebu."
                         )
                     return JsonResponse({'message': f'Payout {action}d for {merchant.bus_name}.'})
             else:
-                tx_app = apps.get_app_config('transactions')
-                for model in tx_app.get_models():
-                    if 'payout' in model.__name__.lower() or 'withdraw' in model.__name__.lower():
-                        obj = model.objects.filter(pk=raw_id).first()
-                        if obj and hasattr(obj, 'status'):
-                            obj.status = 'Approved' if action == 'approve' else 'Rejected'
-                            obj.save()
-                            return JsonResponse({'message': f'Payout request {obj.status}.'})
+                w_obj = WithdrawalReq.objects.select_related('merchant__user').filter(withdrawal_id=raw_id).first()
+                if w_obj:
+                    merchant = w_obj.merchant
+                    if action == 'approve':
+                        w_obj.withdrawal_status = 'Approved'
+                        w_obj.reference_number = reference_number
+                        w_obj.processed_at = timezone.now()
+                        w_obj.save()
+
+                        if merchant.wallet_bal >= w_obj.amount:
+                            merchant.wallet_bal -= w_obj.amount
+                        else:
+                            merchant.wallet_bal = Decimal('0.00')
+                        merchant.save()
+
+                        log_system_activity(
+                            "Payout",
+                            f"Withdrawal PO-{w_obj.withdrawal_id} (₱{float(w_obj.amount):,.2f} via {w_obj.channel or 'GCash'}) approved for {merchant.bus_name}. Ref #: {reference_number}.",
+                            target_user=merchant.user,
+                            merchant=merchant,
+                            withdrawal=w_obj,
+                        )
+                        send_compliance_email(
+                            merchant.user.user_email,
+                            "RESERVE Cebu - Withdrawal Approved & Transferred",
+                            f"Hello {merchant.bus_name},\n\nYour withdrawal request (PO-{w_obj.withdrawal_id}) for ₱{float(w_obj.amount):,.2f} "
+                            f"(Net Transfer: ₱{float(w_obj.net_payout or w_obj.amount):,.2f} to {w_obj.channel or 'GCash'} {w_obj.gcash_num}) has been approved!\n\n"
+                            f"Official Transfer Reference Number: {reference_number}"
+                        )
+                        return JsonResponse({'message': f'Withdrawal PO-{w_obj.withdrawal_id} approved with Ref #{reference_number}.'})
+                    else:
+                        w_obj.withdrawal_status = 'Rejected'
+                        w_obj.processed_at = timezone.now()
+                        w_obj.save()
+                        log_system_activity(
+                            "Payout",
+                            f"Withdrawal PO-{w_obj.withdrawal_id} for {merchant.bus_name} was rejected ({reject_reason}).",
+                            target_user=merchant.user,
+                            merchant=merchant,
+                            withdrawal=w_obj,
+                        )
+                        return JsonResponse({'message': f'Withdrawal PO-{w_obj.withdrawal_id} rejected.'})
             return JsonResponse({'message': 'Payout updated.'})
 
     except Exception as e:

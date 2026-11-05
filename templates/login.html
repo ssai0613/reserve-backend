@@ -182,33 +182,29 @@
   </div>
 
   <!-- =================================================================== -->
-  <!-- PASSWORD RESET INSTRUCTIONS MODAL                                   -->
+  <!-- ADMIN EMAIL PASSWORD RESET MODAL                                    -->
   <!-- =================================================================== -->
   <div id="forgotPwModal" class="modal-overlay hidden fixed inset-0 bg-black/50 backdrop-blur-xs flex justify-center items-center z-50 p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-xl border border-gray-200 overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
         <div class="flex items-center gap-2">
-          <i data-lucide="key-round" class="w-4 h-4 text-[#1B4D3E]"></i>
+          <i data-lucide="mail-check" class="w-4 h-4 text-[#1B4D3E]"></i>
           <h3 class="font-bold text-gray-900 text-xs">Administrator Password Reset</h3>
         </div>
         <button onclick="closeModal('forgotPwModal')" class="text-gray-400 hover:text-gray-700 text-xs font-bold">✕</button>
       </div>
       <div class="p-6 space-y-3 text-xs">
         <p class="text-gray-600 leading-relaxed">
-          For security compliance, Super Administrator credentials can only be reset via the backend management shell:
+          Click below to send an official password reset link directly to the RESERVE Administrator inbox (<strong class="text-[#1B4D3E]">reserve.org.com@gmail.com</strong>).
         </p>
-        <div class="bg-gray-900 text-emerald-400 font-mono text-[10px] p-3.5 rounded-xl leading-relaxed overflow-x-auto">
-          python manage.py shell<br>
-          &gt;&gt;&gt; from accounts.models import User<br>
-          &gt;&gt;&gt; from django.contrib.auth.hashers import make_password<br>
-          &gt;&gt;&gt; u = User.objects.filter(user_role='Admin').first()<br>
-          &gt;&gt;&gt; u.user_pass = make_password('NewPass123')<br>
-          &gt;&gt;&gt; u.save()
-        </div>
+        <div id="adminResetFeedback" class="hidden p-3 rounded-xl font-bold text-[11px]"></div>
       </div>
-      <div class="px-6 py-3.5 bg-gray-50 border-t border-gray-100 flex justify-end">
-        <button onclick="closeModal('forgotPwModal')" class="bg-[#1B4D3E] text-white font-bold text-xs px-5 py-2 rounded-lg hover:bg-[#143B2F] transition-colors">
-          Close
+      <div class="px-6 py-3.5 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+        <button onclick="closeModal('forgotPwModal')" class="bg-white border border-gray-200 text-gray-600 font-bold text-xs px-4 py-2 rounded-lg hover:bg-gray-100">
+          Cancel
+        </button>
+        <button id="sendAdminResetLinkBtn" onclick="sendAdminPasswordResetEmail()" class="bg-[#1B4D3E] text-white font-bold text-xs px-5 py-2 rounded-lg hover:bg-[#143B2F] transition-colors">
+          Send Reset Link to Email
         </button>
       </div>
     </div>

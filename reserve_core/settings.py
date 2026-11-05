@@ -134,24 +134,6 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-
-# Email (Real Gmail SMTP)
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'reserve.org.com@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'urswceixgucewidy')
-DEFAULT_FROM_EMAIL = f"RESERVE Cebu <{EMAIL_HOST_USER}>"
-
-# Twilio SMS Configuration (Option 3)
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
-TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
-
-# PayMongo Live/Test Gateway Configuration
-PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')
-
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -175,3 +157,20 @@ AUTHENTICATION_BACKENDS = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+
+
+# Email (Real Gmail SMTP)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'reserve.org.com@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'urswceixgucewidy')
+DEFAULT_FROM_EMAIL = f"RESERVE Cebu <{EMAIL_HOST_USER}>"
+
+# TextBee SMS Gateway Configuration
+TEXTBEE_API_KEY = os.environ.get('TEXTBEE_API_KEY', 'txb_51iSpHTvGSCKnF7H0UJAUbKcnenKudzT')
+TEXTBEE_DEVICE_ID = os.environ.get('TEXTBEE_DEVICE_ID', '6aeade1a78119a01b1ffe9b8')
+
+# Xendit Payment Gateway Configuration
+XENDIT_SECRET_KEY = os.environ.get('XENDIT_SECRET_KEY', 'xnd_development_E27flvuxCGwhU7BBcLEDOZDqTdPIVYhtbV2oFEqQVDJEhPqcXe8lSAd8W1g')
